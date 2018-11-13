@@ -143,7 +143,7 @@ def slim_get_batch(num_classes, batch_size, split_name, file_pattern, num_reader
       split_name: 'train' of 'val'.
       file_pattern: The file pattern to use when matching the dataset sources (full path).
       num_readers: the max number of reader used for reading tfrecords.
-      num_preprocessing_threads: the max number of threads used to run preprocessing function.
+      num_preprocessing_threads: the max number of threads used to run my_preprocessing function.
       image_preprocessing_fn: the function used to dataset augumentation.
       anchor_encoder: the function used to encoder all anchors.
       num_epochs: total epoches for iterate this dataset.

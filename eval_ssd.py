@@ -26,7 +26,7 @@ import numpy as np
 from net import ssd_net
 
 from dataset import dataset_common
-from preprocessing import ssd_preprocessing
+from my_preprocessing import ssd_preprocessing
 from utility import anchor_manipulator
 from utility import scaffolds
 

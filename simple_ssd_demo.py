@@ -26,7 +26,7 @@ import numpy as np
 from net import ssd_net
 
 from dataset import dataset_common
-from preprocessing import ssd_preprocessing
+from my_preprocessing import ssd_preprocessing
 from utility import anchor_manipulator
 from utility import draw_toolbox
 
@@ -209,7 +209,7 @@ def main(_):
 
             saver.restore(sess, get_checkpoint())
 
-            np_image = imread('./demo/test.jpg')
+            np_image = imread('./demo/test2.jpg')
             labels_, scores_, bboxes_ = sess.run([all_labels, all_scores, all_bboxes], feed_dict = {image_input : np_image, shape_input : np_image.shape[:-1]})
 
             img_to_draw = draw_toolbox.bboxes_draw_on_img(np_image, labels_, scores_, bboxes_, thickness=2)

@@ -24,7 +24,7 @@ import numpy as np
 import sys; sys.path.insert(0, ".")
 from utility import draw_toolbox
 from utility import anchor_manipulator
-from preprocessing import ssd_preprocessing
+from my_preprocessing import ssd_preprocessing
 
 slim = tf.contrib.slim
 

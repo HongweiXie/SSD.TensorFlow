@@ -22,7 +22,7 @@ import sys
 import tensorflow as tf
 
 from net import ssd_net
-
+from  net.mobilenet_v1_backbone import MobileNetV1Backbone
 from dataset import dataset_common
 from my_preprocessing import ssd_preprocessing
 from utility import anchor_manipulator
@@ -47,7 +47,7 @@ tf.app.flags.DEFINE_string(
 tf.app.flags.DEFINE_integer(
     'num_classes', 21, 'Number of classes to use in the dataset.')
 tf.app.flags.DEFINE_string(
-    'model_dir', './logs/',
+    'model_dir', './logs/mobilenet_ssd',
     'The directory where the model will be stored.')
 tf.app.flags.DEFINE_integer(
     'log_every_n_steps', 10,
@@ -69,10 +69,10 @@ tf.app.flags.DEFINE_integer(
     'max_number_of_steps', 120000,
     'The max number of steps to use for training.')
 tf.app.flags.DEFINE_integer(
-    'batch_size', 32,
+    'batch_size', 16,
     'Batch size for training and evaluation.')
 tf.app.flags.DEFINE_string(
-    'data_format', 'channels_first', # 'channels_first' or 'channels_last'
+    'data_format', 'channels_last', # 'channels_first' or 'channels_last'
     'A flag to override the data format used in the model. channels_first '
     'provides a performance boost on GPU but is not always compatible '
     'with CPU. If left unspecified, the data format will be chosen '
@@ -107,7 +107,7 @@ tf.app.flags.DEFINE_string(
     'checkpoint_path', './model',
     'The path to a checkpoint from which to fine-tune.')
 tf.app.flags.DEFINE_string(
-    'checkpoint_model_scope', 'vgg_16',
+    'checkpoint_model_scope', '',
     'Model scope in the checkpoint. None if the same as the trained model.')
 tf.app.flags.DEFINE_string(
     'model_scope', 'ssd300',
@@ -167,11 +167,11 @@ def input_pipeline(dataset_pattern='train-*', is_training=True, batch_size=FLAGS
     def input_fn():
         out_shape = [FLAGS.train_image_size] * 2
         anchor_creator = anchor_manipulator.AnchorCreator(out_shape,
-                                                    layers_shapes = [(38, 38), (19, 19), (10, 10), (5, 5), (3, 3), (1, 1)],
-                                                    anchor_scales = [(0.1,), (0.2,), (0.375,), (0.55,), (0.725,), (0.9,)],
-                                                    extra_anchor_scales = [(0.1414,), (0.2739,), (0.4541,), (0.6315,), (0.8078,), (0.9836,)],
-                                                    anchor_ratios = [(1., 2., .5), (1., 2., 3., .5, 0.3333), (1., 2., 3., .5, 0.3333), (1., 2., 3., .5, 0.3333), (1., 2., .5), (1., 2., .5)],
-                                                    layer_steps = [8, 16, 32, 64, 100, 300])
+                                                    layers_shapes = [(19, 19), (10, 10), (5, 5), (3, 3), (2,2), (1, 1)],
+                                                    anchor_scales = [(0.2,), (0.375,), (0.55,), (0.725,),(0.815,), (0.9,)],
+                                                    extra_anchor_scales = [(0.2739,), (0.4541,), (0.6315,), (0.8078,), (0.8957,), (0.9836,)],
+                                                    anchor_ratios = [(1., 2., 3., .5, 0.3333), (1., 2., 3., .5, 0.3333), (1., 2., 3., .5, 0.3333), (1., 2., .5), (1., 2., .5), (1., 2., .5)],
+                                                    layer_steps = [16, 32, 64, 100, 150, 300])
         all_anchors, all_num_anchors_depth, all_num_anchors_spatial = anchor_creator.get_all_anchors()
 
         num_anchors_per_layer = []
@@ -266,8 +266,8 @@ def ssd_model_fn(features, labels, mode, params):
 
     #print(all_num_anchors_depth)
     with tf.variable_scope(params['model_scope'], default_name=None, values=[features], reuse=tf.AUTO_REUSE):
-        backbone = ssd_net.VGG16Backbone(params['data_format'])
-        feature_layers = backbone.forward(features, training=(mode == tf.estimator.ModeKeys.TRAIN))
+        backbone = MobileNetV1Backbone(params['data_format'])
+        feature_layers = backbone.forward(features, is_training=(mode == tf.estimator.ModeKeys.TRAIN))
         #print(feature_layers)
         location_pred, cls_pred = ssd_net.multibox_head(feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
 
@@ -361,16 +361,20 @@ def ssd_model_fn(features, labels, mode, params):
     tf.summary.scalar('location_loss', loc_loss)
     tf.losses.add_loss(loc_loss)
 
-    l2_loss_vars = []
-    for trainable_var in tf.trainable_variables():
-        if '_bn' not in trainable_var.name:
-            if 'conv4_3_scale' not in trainable_var.name:
-                l2_loss_vars.append(tf.nn.l2_loss(trainable_var))
-            else:
-                l2_loss_vars.append(tf.nn.l2_loss(trainable_var) * 0.1)
+    # l2_loss_vars = []
+    l2_loss_vars = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+    # for trainable_var in tf.trainable_variables():
+    #     if '_bn' not in trainable_var.name:
+    #         if 'conv4_3_scale' not in trainable_var.name:
+    #             l2_loss_vars.append(tf.nn.l2_loss(trainable_var))
+    #         else:
+    #             l2_loss_vars.append(tf.nn.l2_loss(trainable_var) * 0.1)
     # Add weight decay to the loss. We exclude the batch norm variables because
     # doing so leads to a small improvement in accuracy.
-    total_loss = tf.add(cross_entropy + loc_loss, tf.multiply(params['weight_decay'], tf.add_n(l2_loss_vars), name='l2_loss'), name='total_loss')
+    total_loss = tf.add(cross_entropy + loc_loss,
+                        tf.add_n(l2_loss_vars, name='l2_loss'), name='total_loss')
+
+    # total_loss = tf.add(cross_entropy + loc_loss, tf.multiply(params['weight_decay'], tf.add_n(l2_loss_vars), name='l2_loss'), name='total_loss')
 
     if mode == tf.estimator.ModeKeys.TRAIN:
         global_step = tf.train.get_or_create_global_step()

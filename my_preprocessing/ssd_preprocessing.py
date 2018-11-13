@@ -14,7 +14,7 @@
 # ==============================================================================
 """Provides utilities to preprocess images.
 
-The preprocessing steps for VGG were introduced in the following technical
+The my_preprocessing steps for VGG were introduced in the following technical
 report:
 
   Very Deep Convolutional Networks For Large-Scale Image Recognition
@@ -86,7 +86,7 @@ def distort_color(image, color_ordering=0, fast_mode=True, scope=None):
   Each color distortion is non-commutative and thus ordering of the color ops
   matters. Ideally we would randomly permute the ordering of the color ops.
   Rather then adding that level of complication, we select a distinct ordering
-  of color ops for each preprocessing thread.
+  of color ops for each my_preprocessing thread.
 
   Args:
     image: 3-D Tensor containing single image in [0, 1].
@@ -434,7 +434,7 @@ def preprocess_for_train(image, labels, bboxes, out_shape, data_format='channels
     image: A `Tensor` representing an image of arbitrary size.
     labels: A `Tensor` containing all labels for all bboxes of this image.
     bboxes: A `Tensor` containing all bboxes of this image, in range [0., 1.] with shape [num_bboxes, 4].
-    out_shape: The height and width of the image after preprocessing.
+    out_shape: The height and width of the image after my_preprocessing.
     data_format: The data_format of the desired output image.
   Returns:
     A preprocessed image.
@@ -482,7 +482,7 @@ def preprocess_for_eval(image, out_shape, data_format='channels_first', scope='s
 
   Args:
     image: A `Tensor` representing an image of arbitrary size.
-    out_shape: The height and width of the image after preprocessing.
+    out_shape: The height and width of the image after my_preprocessing.
     data_format: The data_format of the desired output image.
   Returns:
     A preprocessed image.
@@ -508,7 +508,7 @@ def preprocess_image(image, labels, bboxes, out_shape, is_training=False, data_f
     image: A `Tensor` representing an image of arbitrary size.
     labels: A `Tensor` containing all labels for all bboxes of this image.
     bboxes: A `Tensor` containing all bboxes of this image, in range [0., 1.] with shape [num_bboxes, 4].
-    out_shape: The height and width of the image after preprocessing.
+    out_shape: The height and width of the image after my_preprocessing.
     is_training: Wether we are in training phase.
     data_format: The data_format of the desired output image.
 
