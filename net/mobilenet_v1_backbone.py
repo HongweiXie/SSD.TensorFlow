@@ -10,7 +10,7 @@ _init_zero = slim.init_ops.zeros_initializer()
 _l2_regularizer_00004 = tf.contrib.layers.l2_regularizer(0.00004)
 
 class MobileNetV1Backbone(object):
-    def __init__(self, data_format='channels_first',is_training=False):
+    def __init__(self, data_format='channels_first'):
         super(MobileNetV1Backbone, self).__init__()
         self._data_format = data_format
 
@@ -46,6 +46,13 @@ class MobileNetV1Backbone(object):
                         depth_multiplier=1.0,
                         use_explicit_padding=False)
 
+
+        with slim.arg_scope([slim.batch_norm],
+                                decay=0.97,
+                                epsilon=0.001,
+                                scale=True,
+                                center=True
+                                ):
             with slim.arg_scope([slim.conv2d, slim.separable_conv2d],
                                 activation_fn=tf.nn.relu6,
                                 normalizer_fn=slim.batch_norm,
