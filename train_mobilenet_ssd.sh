@@ -1,0 +1,1 @@
+python train_mobilenet_ssd.py --data_dir=/home/hongwei.xhw/Develop/TF/data/VOCdevkit/tf_record --batch_size=32 --checkpoint_path=/home/hongwei.xhw/Develop/TF/tf-pose-estimation/models/pretrained/mobilenet_v1_1.0_224_2017_06_14

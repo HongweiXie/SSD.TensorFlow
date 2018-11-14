@@ -37,7 +37,7 @@ class MobileNetV1Backbone(object):
                                     activation_fn=tf.nn.relu6,
                                     normalizer_fn=slim.batch_norm,
                                     weights_regularizer=_l2_regularizer_00004,
-                                    weights_initializer=_init_norm
+                                    weights_initializer=_init_xavier
                                     ):
                     _, image_features = mobilenet_v1.mobilenet_v1_base(
                         inputs,
@@ -57,7 +57,7 @@ class MobileNetV1Backbone(object):
                                 activation_fn=tf.nn.relu6,
                                 normalizer_fn=slim.batch_norm,
                                 weights_regularizer=_l2_regularizer_00004,
-                                weights_initializer=_init_norm
+                                weights_initializer=_init_xavier
                                 ):
                 feature_maps = feature_map_generators.multi_resolution_feature_maps(
                     feature_map_layout=feature_map_layout,
