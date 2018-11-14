@@ -18,10 +18,12 @@ from __future__ import print_function
 
 import os
 import sys
+import cv2
 
 import tensorflow as tf
 from scipy.misc import imread, imsave, imshow, imresize
 import numpy as np
+import glob
 
 from net import ssd_net
 from net.mobilenet_v1_backbone import MobileNetV1Backbone
@@ -216,11 +218,22 @@ def main(_):
 
             saver.restore(sess, get_checkpoint())
 
-            np_image = imread('./demo/test.jpg')
-            labels_, scores_, bboxes_ = sess.run([all_labels, all_scores, all_bboxes], feed_dict = {image_input : np_image, shape_input : np_image.shape[:-1]})
+            demo_imgs=glob.glob('./demo/*.jpg')
+            for demo_img in demo_imgs:
+                if str(demo_img).endswith('out.jpg'):
+                    continue
+                np_image = imread(demo_img)
+                labels_, scores_, bboxes_ = sess.run([all_labels, all_scores, all_bboxes],
+                                                     feed_dict={image_input: np_image,
+                                                                shape_input: np_image.shape[:-1]})
 
-            img_to_draw = draw_toolbox.bboxes_draw_on_img(np_image, labels_, scores_, bboxes_, thickness=2)
-            imsave('./demo/test_out.jpg', img_to_draw)
+                img_to_draw = draw_toolbox.bboxes_draw_on_img(np_image, labels_, scores_, bboxes_, thickness=2)
+                imsave(demo_img[:-4]+'_out.jpg', img_to_draw)
+                show_img=cv2.cvtColor(img_to_draw,cv2.COLOR_RGB2BGR)
+                cv2.imshow('demo',show_img)
+                cv2.waitKey(0)
+
+
 
 if __name__ == '__main__':
   tf.logging.set_verbosity(tf.logging.INFO)

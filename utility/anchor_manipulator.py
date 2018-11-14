@@ -66,33 +66,36 @@ def do_dual_max_match(overlap_matrix, low_thres, high_thres, ignore_between=True
         # fill all negative positions with -1, all ignore positions is -2
         match_indices = tf.where(negative_mask, -1 * tf.ones_like(anchors_to_gt), anchors_to_gt)
         match_indices = tf.where(ignore_mask, -2 * tf.ones_like(match_indices), match_indices)
-
+        # match_indices=tf.Print(match_indices,[match_indices],message='match_indices',summarize=2000)
         # negtive values has no effect in tf.one_hot, that means all zeros along that axis
         # so all positive match positions in anchors_to_gt_mask is 1, all others are 0
         anchors_to_gt_mask = tf.one_hot(tf.clip_by_value(match_indices, -1, tf.cast(tf.shape(overlap_matrix)[0], tf.int64)),
                                         tf.shape(overlap_matrix)[0], on_value=1, off_value=0, axis=0, dtype=tf.int32)
         # match from ground truth's side
         gt_to_anchors = tf.argmax(overlap_matrix, axis=1)
-
+        # gt_to_anchors=tf.Print(gt_to_anchors,[gt_to_anchors],message='gt_to_anchors:',summarize=2000)
         if gt_max_first:
             # the max match from ground truth's side has higher priority
             left_gt_to_anchors_mask = tf.one_hot(gt_to_anchors, tf.shape(overlap_matrix)[1], on_value=1, off_value=0, axis=1, dtype=tf.int32)
         else:
             # the max match from anchors' side has higher priority
             # use match result from ground truth's side only when the the matching degree from anchors' side is lower than position threshold
-            left_gt_to_anchors_mask = tf.cast(tf.logical_and(tf.reduce_max(anchors_to_gt_mask, axis=1, keep_dims=True) < 1,
-                                                            tf.one_hot(gt_to_anchors, tf.shape(overlap_matrix)[1],
+            c1=tf.reduce_max(anchors_to_gt_mask, axis=1, keep_dims=True) < 1
+            c2=tf.one_hot(gt_to_anchors, tf.shape(overlap_matrix)[1],
                                                                         on_value=True, off_value=False, axis=1, dtype=tf.bool)
-                                                            ), tf.int64)
+            left_gt_to_anchors_mask = tf.cast(tf.logical_and(c1,c2), tf.int32)
+        # left_gt_to_anchors_mask=tf.Print(left_gt_to_anchors_mask,[left_gt_to_anchors_mask],message='left_gt_to_anchors_mask',summarize=2000)
         # can not use left_gt_to_anchors_mask here, because there are many ground truthes match to one anchor, we should pick the highest one even when we are merging matching from ground truth side
         left_gt_to_anchors_scores = overlap_matrix * tf.to_float(left_gt_to_anchors_mask)
         # merge matching results from ground truth's side with the original matching results from anchors' side
         # then select all the overlap score of those matching pairs
-        selected_scores = tf.gather_nd(overlap_matrix,  tf.stack([tf.where(tf.reduce_max(left_gt_to_anchors_mask, axis=0) > 0,
+        tmp_indices=tf.stack([tf.where(tf.reduce_max(left_gt_to_anchors_mask, axis=0) > 0,
                                                                             tf.argmax(left_gt_to_anchors_scores, axis=0),
                                                                             anchors_to_gt),
-                                                                    tf.range(tf.cast(tf.shape(overlap_matrix)[1], tf.int64))], axis=1))
+                                                                    tf.range(tf.cast(tf.shape(overlap_matrix)[1], tf.int64))], axis=1)
+        selected_scores = tf.gather_nd(overlap_matrix, tmp_indices )
         # return the matching results for both foreground anchors and background anchors, also with overlap scores
+        # selected_scores=tf.Print(selected_scores,[selected_scores],'selected_scores',summarize=2000)
         return tf.where(tf.reduce_max(left_gt_to_anchors_mask, axis=0) > 0,
                         tf.argmax(left_gt_to_anchors_scores, axis=0),
                         match_indices), selected_scores
@@ -319,6 +322,10 @@ class AnchorCreator(object):
         all_anchors = []
         all_num_anchors_depth = []
         all_num_anchors_spatial = []
+        if self._layer_steps is None:
+            self._layer_steps=[]
+            for layer_shape in self._layers_shapes:
+                self._layer_steps.append(self._img_shape[0]/layer_shape[0])
         for layer_index, layer_shape in enumerate(self._layers_shapes):
             anchors_this_layer = self.get_layer_anchors(layer_shape,
                                                         self._anchor_scales[layer_index],

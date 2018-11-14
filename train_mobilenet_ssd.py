@@ -20,6 +20,7 @@ import os
 import sys
 
 import tensorflow as tf
+from tensorflow.python import debug as tf_debug
 
 from net import ssd_net
 from  net.mobilenet_v1_backbone import MobileNetV1Backbone
@@ -168,17 +169,17 @@ def input_pipeline(dataset_pattern='train-*', is_training=True, batch_size=FLAGS
         out_shape = [FLAGS.train_image_size] * 2
         anchor_creator = anchor_manipulator.AnchorCreator(out_shape,
                                                     layers_shapes = [(19, 19), (10, 10), (5, 5), (3, 3), (2,2), (1, 1)],
-                                                    anchor_scales = [(0.2,), (0.375,), (0.55,), (0.725,),(0.815,), (0.9,)],
-                                                    extra_anchor_scales = [(0.2739,), (0.4541,), (0.6315,), (0.8078,), (0.8957,), (0.9836,)],
-                                                    anchor_ratios = [(1., 2., 3., .5, 0.3333), (1., 2., 3., .5, 0.3333), (1., 2., 3., .5, 0.3333), (1., 2., .5), (1., 2., .5), (1., 2., .5)],
-                                                    layer_steps = [16, 32, 64, 100, 150, 300])
+                                                    anchor_scales = [(0.2,), (0.35,), (0.5,), (0.65,),(0.8,), (0.95,)],
+                                                    extra_anchor_scales = [(0.1,), (0.418,), (0.570,), (0.721,), (0.872,), (0.975,)],
+                                                    anchor_ratios = [(2., .5), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333)],
+                                                    layer_steps = None)
         all_anchors, all_num_anchors_depth, all_num_anchors_spatial = anchor_creator.get_all_anchors()
 
         num_anchors_per_layer = []
         for ind in range(len(all_anchors)):
             num_anchors_per_layer.append(all_num_anchors_depth[ind] * all_num_anchors_spatial[ind])
 
-        anchor_encoder_decoder = anchor_manipulator.AnchorEncoder(allowed_borders = [1.0] * 6,
+        anchor_encoder_decoder = anchor_manipulator.AnchorEncoder(allowed_borders = [1.0] * len(all_anchors),
                                                             positive_threshold = FLAGS.match_threshold,
                                                             ignore_threshold = FLAGS.neg_threshold,
                                                             prior_scaling=[0.1, 0.1, 0.2, 0.2])
@@ -404,7 +405,7 @@ def ssd_model_fn(features, labels, mode, params):
                               loss=total_loss,
                               train_op=train_op,
                               eval_metric_ops=metrics,
-                              scaffold=tf.train.Scaffold(init_fn=get_init_fn()))
+                              scaffold=tf.train.Scaffold(init_fn=get_init_fn()))#training_hooks=[tf_debug.LocalCLIDebugHook()
 
 def parse_comma_list(args):
     return [float(s.strip()) for s in args.split(',')]
@@ -460,6 +461,7 @@ def main(_):
 
     #hook = tf.train.ProfilerHook(save_steps=50, output_dir='.', show_memory=True)
     print('Starting a training cycle.')
+    debug_hook = tf_debug.TensorBoardDebugHook("sixdailabs-Alienware-17-R4:6064",send_traceback_and_source_code=False)
     ssd_detector.train(input_fn=input_pipeline(dataset_pattern='train-*', is_training=True, batch_size=FLAGS.batch_size),
                     hooks=[logging_hook], max_steps=FLAGS.max_number_of_steps)
 
