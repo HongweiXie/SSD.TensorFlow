@@ -22,51 +22,52 @@ class MobileNetV1Backbone(object):
                            '', ''],
             'layer_depth': [-1, -1, 512, 256, 256, 128],
             'use_explicit_padding': False,
-            'use_depthwise': True,
+            'use_depthwise': False,
         }
-        with slim.arg_scope([slim.batch_norm],
-                            decay=0.97,
-                            epsilon=0.001,
-                            scale=True,
-                            center=True
-                            ):
-            with slim.arg_scope(
-                    mobilenet_v1.mobilenet_v1_arg_scope(
-                        is_training=is_training, regularize_depthwise=True)):
+        with tf.variable_scope('MobilenetV1') as scope:
+            with slim.arg_scope([slim.batch_norm],
+                                decay=0.97,
+                                epsilon=0.001,
+                                scale=True,
+                                center=True
+                                ):
+                with slim.arg_scope(
+                        mobilenet_v1.mobilenet_v1_arg_scope(
+                            is_training=is_training, regularize_depthwise=True)):
+                    with slim.arg_scope([slim.conv2d, slim.separable_conv2d],
+                                        activation_fn=tf.nn.relu6,
+                                        normalizer_fn=slim.batch_norm,
+                                        weights_regularizer=_l2_regularizer_00004,
+                                        weights_initializer=_init_xavier
+                                        ):
+                        _, image_features = mobilenet_v1.mobilenet_v1_base(
+                            inputs,
+                            final_endpoint='Conv2d_13_pointwise',
+                            min_depth=8,
+                            depth_multiplier=1.0,
+                            use_explicit_padding=False,
+                            scope=scope)
+
+            with slim.arg_scope([slim.batch_norm],
+                                decay=0.97,
+                                epsilon=0.001,
+                                scale=True,
+                                center=True
+                                ):
                 with slim.arg_scope([slim.conv2d, slim.separable_conv2d],
                                     activation_fn=tf.nn.relu6,
                                     normalizer_fn=slim.batch_norm,
                                     weights_regularizer=_l2_regularizer_00004,
                                     weights_initializer=_init_xavier
                                     ):
-                    _, image_features = mobilenet_v1.mobilenet_v1_base(
-                        inputs,
-                        final_endpoint='Conv2d_13_pointwise',
-                        min_depth=8,
+                    feature_maps = feature_map_generators.multi_resolution_feature_maps(
+                        feature_map_layout=feature_map_layout,
                         depth_multiplier=1.0,
-                        use_explicit_padding=False)
-
-
-        with slim.arg_scope([slim.batch_norm],
-                                decay=0.97,
-                                epsilon=0.001,
-                                scale=True,
-                                center=True
-                                ):
-            with slim.arg_scope([slim.conv2d, slim.separable_conv2d],
-                                activation_fn=tf.nn.relu6,
-                                normalizer_fn=slim.batch_norm,
-                                weights_regularizer=_l2_regularizer_00004,
-                                weights_initializer=_init_xavier
-                                ):
-                feature_maps = feature_map_generators.multi_resolution_feature_maps(
-                    feature_map_layout=feature_map_layout,
-                    depth_multiplier=1.0,
-                    min_depth=8,
-                    insert_1x1_conv=True,
-                    image_features=image_features)
-                for key in feature_maps:
-                    features.append(feature_maps[key])
+                        min_depth=8,
+                        insert_1x1_conv=True,
+                        image_features=image_features)
+                    for key in feature_maps:
+                        features.append(feature_maps[key])
 
         return features
 
