@@ -31,6 +31,7 @@ from utility import anchor_manipulator
 from utility import scaffolds
 
 from pascal_voc_io import PascalVocWriter
+from net.mobilenet_v1_backbone import MobileNetV1Backbone
 
 # hardware related configuration
 tf.app.flags.DEFINE_integer(
@@ -51,7 +52,7 @@ tf.app.flags.DEFINE_string(
 tf.app.flags.DEFINE_integer(
     'num_classes', 21, 'Number of classes to use in the dataset.')
 tf.app.flags.DEFINE_string(
-    'model_dir', './logs/vgg_ssd',
+    'model_dir', './logs/mobilenet_ssd',
     'The directory where the model will be stored.')
 tf.app.flags.DEFINE_integer(
     'log_every_n_steps', 10,
@@ -127,12 +128,18 @@ def input_pipeline(dataset_pattern='train-*', is_training=True, batch_size=FLAGS
     def input_fn():
         out_shape = [FLAGS.train_image_size] * 2
         anchor_creator = anchor_manipulator.AnchorCreator(out_shape,
-                                                    layers_shapes = [(38, 38), (19, 19), (10, 10), (5, 5), (3, 3), (1, 1)],
-                                                    anchor_scales = [(0.1,), (0.2,), (0.375,), (0.55,), (0.725,), (0.9,)],
-                                                    extra_anchor_scales = [(0.1414,), (0.2739,), (0.4541,), (0.6315,), (0.8078,), (0.9836,)],
-                                                    anchor_ratios = [(1., 2., .5), (1., 2., 3., .5, 0.3333), (1., 2., 3., .5, 0.3333), (1., 2., 3., .5, 0.3333), (1., 2., .5), (1., 2., .5)],
-                                                    #anchor_ratios = [(2., .5), (2., 3., .5, 0.3333), (2., 3., .5, 0.3333), (2., 3., .5, 0.3333), (2., .5), (2., .5)],
-                                                    layer_steps = [8, 16, 32, 64, 100, 300])
+                                                          layers_shapes=[(19, 19), (10, 10), (5, 5), (3, 3), (2, 2),
+                                                                         (1, 1)],
+                                                          anchor_scales=[(0.2,), (0.35,), (0.5,), (0.65,), (0.8,),
+                                                                         (0.95,)],
+                                                          extra_anchor_scales=[(0.1,), (0.418,), (0.570,), (0.721,),
+                                                                               (0.872,), (0.975,)],
+                                                          anchor_ratios=[(2., .5), (1., 2., .5, 3., 0.3333),
+                                                                         (1., 2., .5, 3., 0.3333),
+                                                                         (1., 2., .5, 3., 0.3333),
+                                                                         (1., 2., .5, 3., 0.3333),
+                                                                         (1., 2., .5, 3., 0.3333)],
+                                                          layer_steps=None)
         all_anchors, all_num_anchors_depth, all_num_anchors_spatial = anchor_creator.get_all_anchors()
 
         num_anchors_per_layer = []
@@ -274,8 +281,8 @@ def ssd_model_fn(features, labels, mode, params):
     all_num_anchors_depth = global_anchor_info['all_num_anchors_depth']
 
     with tf.variable_scope(params['model_scope'], default_name=None, values=[features], reuse=tf.AUTO_REUSE):
-        backbone = ssd_net.VGG16Backbone(params['data_format'])
-        feature_layers = backbone.forward(features, training=(mode == tf.estimator.ModeKeys.TRAIN))
+        backbone = MobileNetV1Backbone(params['data_format'])
+        feature_layers = backbone.forward(features, is_training=(mode == tf.estimator.ModeKeys.TRAIN))
         #print(feature_layers)
         location_pred, cls_pred = ssd_net.multibox_head(feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
         if params['data_format'] == 'channels_first':
