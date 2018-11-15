@@ -100,6 +100,7 @@ def distort_color(image, color_ordering=0, fast_mode=True, scope=None):
   """
   with tf.name_scope(scope, 'distort_color', [image]):
     if fast_mode:
+      image=tf.Print(image,[image],message='distort image')
       if color_ordering == 0:
         image = tf.image.random_brightness(image, max_delta=32. / 255.)
         image = tf.image.random_saturation(image, lower=0.5, upper=1.5)
