@@ -108,10 +108,10 @@ tf.app.flags.DEFINE_string(
     'checkpoint_path', './model',
     'The path to a checkpoint from which to fine-tune.')
 tf.app.flags.DEFINE_string(
-    'checkpoint_model_scope', '',
+    'checkpoint_model_scope', 'FeatureExtractor',
     'Model scope in the checkpoint. None if the same as the trained model.')
 tf.app.flags.DEFINE_string(
-    'model_scope', 'ssd300',
+    'model_scope', 'FeatureExtractor',
     'Model scope name used to replace the name_scope in checkpoint.')
 tf.app.flags.DEFINE_string(
     'checkpoint_exclude_scopes', 'ssd300/multibox_head, ssd300/additional_layers, ssd300/conv4_3_scale',
@@ -154,7 +154,7 @@ def validate_batch_size_for_multi_gpu(batch_size):
 
 def get_init_fn():
     return scaffolds.get_init_fn_for_scaffold(FLAGS.model_dir, FLAGS.checkpoint_path,
-                                            FLAGS.model_scope, FLAGS.checkpoint_model_scope,
+                                            FLAGS.model_scope, None,
                                             FLAGS.checkpoint_exclude_scopes, FLAGS.ignore_missing_vars,
                                             name_remap={'/kernel': '/weights', '/bias': '/biases'})
 
@@ -350,7 +350,11 @@ def ssd_model_fn(features, labels, mode, params):
     # Calculate loss, which includes softmax cross entropy and L2 regularization.
     #cross_entropy = tf.cond(n_positives > 0, lambda: tf.losses.sparse_softmax_cross_entropy(labels=flaten_cls_targets, logits=cls_pred), lambda: 0.)# * (params['negative_ratio'] + 1.)
     #flaten_cls_targets=tf.Print(flaten_cls_targets, [flaten_loc_targets],summarize=50000)
-    cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=flaten_cls_targets, logits=cls_pred) * (params['negative_ratio'] + 1.)
+    # cross_entropy=tf.nn.sigmoid_cross_entropy_with_logits(labels=flaten_cls_targets, logits=cls_pred)
+    # cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=flaten_cls_targets, logits=cls_pred) * (params['negative_ratio'] + 1.)
+    cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=flaten_cls_targets, logits=cls_pred) * 1.5
+    # cross_entropy = tf.losses.sigmoid_cross_entropy(labels=flaten_cls_targets, logits=cls_pred) * 1.5
+
     # Create a tensor named cross_entropy for logging purposes.
     tf.identity(cross_entropy, name='cross_entropy_loss')
     tf.summary.scalar('cross_entropy_loss', cross_entropy)

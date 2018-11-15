@@ -19,7 +19,14 @@ from __future__ import print_function
 import tensorflow as tf
 
 slim = tf.contrib.slim
-
+HAND_LABLES={
+'none': (0, 'Background'),
+'index': (1, 'hand'),
+'other': (1, 'hand'),
+'point': (1, 'hand'),
+'point_r': (1, 'hand'),
+'point_l': (1, 'hand'),
+}
 VOC_LABELS = {
     'none': (0, 'Background'),
     'aeroplane': (1, 'Vehicle'),

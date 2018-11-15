@@ -56,7 +56,7 @@ tf.app.flags.DEFINE_integer(
     'keep_topk', 200, 'Number of total object to keep for each image before nms.')
 # checkpoint related configuration
 tf.app.flags.DEFINE_string(
-    'checkpoint_path', './logs',
+    'checkpoint_path', './logs/vgg_ssd',
     'The path to a checkpoint from which to fine-tune.')
 tf.app.flags.DEFINE_string(
     'model_scope', 'ssd300',
