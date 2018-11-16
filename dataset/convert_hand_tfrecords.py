@@ -43,17 +43,17 @@ import dataset_common
        |    |->Annotations/
        |    |->...
 '''
-tf.app.flags.DEFINE_string('dataset_directory', '/media/rs/7A0EE8880EE83EAF/Detections/PASCAL/VOC',
+tf.app.flags.DEFINE_string('dataset_directory', '/home/sixd-ailabs/Develop/Human/Hand/diandu/test',
                            'All datas directory')
-tf.app.flags.DEFINE_string('train_splits', 'VOC2007, VOC2012',
+tf.app.flags.DEFINE_string('train_splits', 'total_640x360',
                            'Comma-separated list of the training data sub-directory')
-tf.app.flags.DEFINE_string('validation_splits', 'VOC2007TEST',
+tf.app.flags.DEFINE_string('validation_splits', 'chengren_17',
                            'Comma-separated list of the validation data sub-directory')
-tf.app.flags.DEFINE_string('output_directory', '/media/rs/7A0EE8880EE83EAF/Detections/SSD/dataset/tfrecords',
+tf.app.flags.DEFINE_string('output_directory', '/home/sixd-ailabs/Develop/Human/Hand/diandu/test/tf_record',
                            'Output data directory')
 tf.app.flags.DEFINE_integer('train_shards', 16,
                             'Number of shards in training TFRecord files.')
-tf.app.flags.DEFINE_integer('validation_shards', 16,
+tf.app.flags.DEFINE_integer('validation_shards', 8,
                             'Number of shards in validation TFRecord files.')
 tf.app.flags.DEFINE_integer('num_threads', 8,
                             'Number of threads to preprocess the images.')
@@ -117,8 +117,14 @@ def _convert_to_example(filename, image_name, image_buffer, bboxes, labels, labe
   image_format = 'JPEG'
 
   for i in range(len(labels)):
-      labels[i]=1
-      labels_text[i]=b'hand'
+      if(labels[i]==1):
+        labels[i]=1
+        labels_text[i]=b'point'
+      elif (labels[i]==2):
+          labels[i]=2
+          labels_text[i]=b'other'
+      else:
+          print('Error',labels[i],str(labels_text[i]))
 
   example = tf.train.Example(features=tf.train.Features(feature={
             'image/height': _int64_feature(height),
@@ -225,6 +231,7 @@ def _find_image_bounding_boxes(directory, cur_record):
   shape = [int(size.find('height').text),
            int(size.find('width').text),
            int(size.find('depth').text)]
+  assert shape[0]==360 and shape[1]==640 and shape[2]==3
   # Find annotations.
   bboxes = []
   labels = []
@@ -296,6 +303,9 @@ def _process_image_files_batch(coder, thread_index, ranges, name, directory, all
       filename = os.path.join(directory, cur_record[0], cur_record[1])
 
       bboxes, labels, labels_text, difficult, truncated = _find_image_bounding_boxes(directory, cur_record)
+      if len(bboxes)<=0:
+          print(filename)
+          continue
       image_buffer, height, width = _process_image(filename, coder)
 
       example = _convert_to_example(filename, cur_record[1], image_buffer, bboxes, labels, labels_text,
@@ -391,7 +401,7 @@ def main(unused_argv):
   print('Saving results to %s' % FLAGS.output_directory)
 
   # Run it!
-  _process_dataset('val', FLAGS.dataset_directory, parse_comma_list(FLAGS.validation_splits), FLAGS.validation_shards)
+  # _process_dataset('val', FLAGS.dataset_directory, parse_comma_list(FLAGS.validation_splits), FLAGS.validation_shards)
   _process_dataset('train', FLAGS.dataset_directory, parse_comma_list(FLAGS.train_splits), FLAGS.train_shards)
 
 if __name__ == '__main__':

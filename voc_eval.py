@@ -36,10 +36,10 @@ VOC2007TEST
 '''
 dataset_path = '/home/sixd-ailabs/Downloads/VOCdevkit/VOC2007'
 # change above path according to your system settings
-pred_path = './logs/mobilenet_ssd/predict'
+pred_path = './logs/mobilenet_ssd_2/predict'
 pred_file = 'results_{}.txt' # from 1-num_classes
-output_path = './logs/mobilenet_ssd/predict/eval_output'
-cache_path = './logs/mobilenet_ssd/predict/eval_cache'
+output_path = './logs/mobilenet_ssd_2/predict/eval_output'
+cache_path = './logs/mobilenet_ssd_2/predict/eval_cache'
 anno_files = 'Annotations/{}.xml'
 all_images_file = 'ImageSets/Main/test.txt'
 

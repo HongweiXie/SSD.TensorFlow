@@ -43,7 +43,7 @@ colors_tableau = [(255, 255, 255), (31, 119, 180), (174, 199, 232), (255, 127, 1
                  (227, 119, 194), (247, 182, 210), (127, 127, 127), (199, 199, 199),
                  (188, 189, 34), (219, 219, 141), (23, 190, 207), (158, 218, 229)]
 
-def bboxes_draw_on_img(img, classes, scores, bboxes, thickness=2):
+def bboxes_draw_on_img(img, classes, scores, bboxes, thickness=2,show_label=True):
     shape = img.shape
     scale = 0.4
     text_thickness = 1
@@ -60,7 +60,10 @@ def bboxes_draw_on_img(img, classes, scores, bboxes, thickness=2):
 
         cv2.rectangle(img, p1[::-1], p2[::-1], color, thickness)
         # Draw text
-        s = '%s/%.1f%%' % (label2name_table[classes[i]], scores[i]*100)
+        if show_label:
+            s = '%s/%.1f%%' % (label2name_table[classes[i]], scores[i]*100)
+        else:
+            s = '%.1f' % (scores[i] * 100)
         # text_size is (width, height)
         text_size, baseline = cv2.getTextSize(s, cv2.FONT_HERSHEY_SIMPLEX, scale, text_thickness)
         p1 = (p1[0] - text_size[1], p1[1])

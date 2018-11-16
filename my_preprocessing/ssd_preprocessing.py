@@ -366,9 +366,11 @@ def ssd_random_sample_patch_wrapper(image, labels, bboxes):
     def body(index, image, labels, bboxes, orgi_image, orgi_labels, orgi_bboxes):
       image, bboxes = tf.cond(tf.random_uniform([], minval=0., maxval=1., dtype=tf.float32) < 0.5,
                       lambda: (orgi_image, orgi_bboxes),
-                      lambda: ssd_random_expand(orgi_image, orgi_bboxes, tf.random_uniform([1], minval=1.1, maxval=4., dtype=tf.float32)[0]))
+                      lambda: ssd_random_expand(orgi_image, orgi_bboxes, tf.random_uniform([1], minval=1.01, maxval=1.5, dtype=tf.float32)[0]))
       # Distort image and bounding boxes.
-      random_sample_image, labels, bboxes = ssd_random_sample_patch(image, orgi_labels, bboxes, ratio_list=[-0.1, 0.1, 0.3, 0.5, 0.7, 0.9, 1.])
+      # random_sample_image, labels, bboxes = ssd_random_sample_patch(image, orgi_labels, bboxes, ratio_list=[-0.1, 0.1, 0.3, 0.5, 0.7, 0.9, 1.])
+      random_sample_image, labels, bboxes = ssd_random_sample_patch(image, orgi_labels, bboxes,
+                                                                    ratio_list=[0.5, 0.7, 0.9, 1.])
       random_sample_image.set_shape([None, None, 3])
       return index+1, random_sample_image, labels, bboxes, orgi_image, orgi_labels, orgi_bboxes
 

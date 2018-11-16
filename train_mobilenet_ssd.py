@@ -43,10 +43,10 @@ tf.app.flags.DEFINE_float(
     'gpu_memory_fraction', 1., 'GPU memory fraction to use.')
 # scaffold related configuration
 tf.app.flags.DEFINE_string(
-    'data_dir', './dataset/tfrecords',
+    'data_dir', '/home/sixd-ailabs/Develop/Human/Hand/diandu/test/tf_record',
     'The directory where the dataset input data is stored.')
 tf.app.flags.DEFINE_integer(
-    'num_classes', 21, 'Number of classes to use in the dataset.')
+    'num_classes', 3, 'Number of classes to use in the dataset.')
 tf.app.flags.DEFINE_string(
     'model_dir', './logs/mobilenet_ssd',
     'The directory where the model will be stored.')
@@ -57,7 +57,7 @@ tf.app.flags.DEFINE_integer(
     'save_summary_steps', 500,
     'The frequency with which summaries are saved, in seconds.')
 tf.app.flags.DEFINE_integer(
-    'save_checkpoints_secs', 1800,
+    'save_checkpoints_secs', 100,
     'The frequency with which the model is saved, in seconds.')
 # model related configuration
 tf.app.flags.DEFINE_integer(
@@ -105,7 +105,7 @@ tf.app.flags.DEFINE_string(
     'The values of learning_rate decay factor for each segment between boundaries (comma-separated list).')
 # checkpoint related configuration
 tf.app.flags.DEFINE_string(
-    'checkpoint_path', './model',
+    'checkpoint_path', '/home/sixd-ailabs/Develop/DL/TF/models/research/object_detection/trainmodels/ssd_mobilenet_v1_coco_2017_11_17',
     'The path to a checkpoint from which to fine-tune.')
 tf.app.flags.DEFINE_string(
     'checkpoint_model_scope', 'FeatureExtractor',
@@ -171,7 +171,7 @@ def input_pipeline(dataset_pattern='train-*', is_training=True, batch_size=FLAGS
                                                     layers_shapes = [(19, 19), (10, 10), (5, 5), (3, 3), (2,2), (1, 1)],
                                                     anchor_scales = [(0.2,), (0.35,), (0.5,), (0.65,),(0.8,), (0.95,)],
                                                     extra_anchor_scales = [(), (0.418,), (0.570,), (0.721,), (0.872,), (0.975,)],
-                                                    anchor_ratios = [(2., .5), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333)],
+                                                    anchor_ratios = [(1., 2., .5), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333)],
                                                     layer_steps = None)
         all_anchors, all_num_anchors_depth, all_num_anchors_spatial = anchor_creator.get_all_anchors()
 

@@ -58,10 +58,10 @@ tf.app.flags.DEFINE_integer(
     'keep_topk', 200, 'Number of total object to keep for each image before nms.')
 # checkpoint related configuration
 tf.app.flags.DEFINE_string(
-    'checkpoint_path', './logs/mobilenet_ssd',
+    'checkpoint_path', './logs/mobilenet_ssd_2',
     'The path to a checkpoint from which to fine-tune.')
 tf.app.flags.DEFINE_string(
-    'model_scope', 'ssd300',
+    'model_scope', 'FeatureExtractor',
     'Model scope name used to replace the name_scope in checkpoint.')
 
 FLAGS = tf.app.flags.FLAGS
@@ -162,9 +162,9 @@ def main(_):
                                                                          (1, 1)],
                                                           anchor_scales=[(0.2,), (0.35,), (0.5,), (0.65,), (0.8,),
                                                                          (0.95,)],
-                                                          extra_anchor_scales=[(0.1,), (0.418,), (0.570,), (0.721,),
+                                                          extra_anchor_scales=[(), (0.418,), (0.570,), (0.721,),
                                                                                (0.872,), (0.975,)],
-                                                          anchor_ratios=[(2., .5), (1., 2., .5, 3., 0.3333),
+                                                          anchor_ratios=[(1., 2., .5), (1., 2., .5, 3., 0.3333),
                                                                          (1., 2., .5, 3., 0.3333),
                                                                          (1., 2., .5, 3., 0.3333),
                                                                          (1., 2., .5, 3., 0.3333),

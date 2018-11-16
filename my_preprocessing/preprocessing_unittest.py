@@ -35,7 +35,7 @@ def save_image_with_bbox(image, labels_, scores_, bboxes_):
     img_to_draw = np.copy(image)
 
     img_to_draw = draw_toolbox.bboxes_draw_on_img(img_to_draw, labels_, scores_, bboxes_, thickness=2)
-    imsave(os.path.join('./debug/{}.jpg').format(save_image_with_bbox.counter), img_to_draw)
+    imsave(os.path.join('../debug/{}.jpg').format(save_image_with_bbox.counter), img_to_draw)
     return save_image_with_bbox.counter
 
 def slim_get_split(file_pattern='{}_????'):

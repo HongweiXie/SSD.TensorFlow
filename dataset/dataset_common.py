@@ -22,7 +22,7 @@ slim = tf.contrib.slim
 HAND_LABLES={
 'none': (0, 'Background'),
 'index': (1, 'hand'),
-'other': (1, 'hand'),
+'other': (2, 'hand'),
 'point': (1, 'hand'),
 'point_r': (1, 'hand'),
 'point_l': (1, 'hand'),
