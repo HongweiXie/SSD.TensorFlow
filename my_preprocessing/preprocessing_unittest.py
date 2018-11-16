@@ -91,7 +91,7 @@ def slim_get_split(file_pattern='{}_????'):
                                                                          'object/bbox',
                                                                          'object/difficult'])
     image, glabels, gbboxes = ssd_preprocessing.preprocess_image(org_image, glabels_raw, gbboxes_raw, [300, 300], is_training=True, data_format='channels_first', output_rgb=True)
-    image=tf.Print(image,[image],message='image')
+    image=tf.Print(image,[image],message='image',summarize=20)
     image = tf.transpose(image, perm=(1, 2, 0))
     save_image_op = tf.py_func(save_image_with_bbox,
                             [ssd_preprocessing.unwhiten_image(image),
@@ -102,7 +102,7 @@ def slim_get_split(file_pattern='{}_????'):
     return save_image_op
 
 if __name__ == '__main__':
-    save_image_op = slim_get_split('/home/sixd-ailabs/Downloads/VOCdevkit/tf_record/val-*')
+    save_image_op = slim_get_split('/home/sixd-ailabs/Develop/Human/Hand/diandu/test/tf_record/val-*')
     # Create the graph, etc.
     init_op = tf.group([tf.local_variables_initializer(), tf.local_variables_initializer(), tf.tables_initializer()])
 
