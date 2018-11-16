@@ -105,3 +105,4 @@ logs/
 demo/
 my_preprocessing/debug/
 debug/
+log*
