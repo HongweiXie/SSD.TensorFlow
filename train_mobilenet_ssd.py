@@ -170,7 +170,7 @@ def input_pipeline(dataset_pattern='train-*', is_training=True, batch_size=FLAGS
         anchor_creator = anchor_manipulator.AnchorCreator(out_shape,
                                                     layers_shapes = [(19, 19), (10, 10), (5, 5), (3, 3), (2,2), (1, 1)],
                                                     anchor_scales = [(0.2,), (0.35,), (0.5,), (0.65,),(0.8,), (0.95,)],
-                                                    extra_anchor_scales = [(0.1,), (0.418,), (0.570,), (0.721,), (0.872,), (0.975,)],
+                                                    extra_anchor_scales = [(), (0.418,), (0.570,), (0.721,), (0.872,), (0.975,)],
                                                     anchor_ratios = [(2., .5), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333)],
                                                     layer_steps = None)
         all_anchors, all_num_anchors_depth, all_num_anchors_spatial = anchor_creator.get_all_anchors()
@@ -351,8 +351,8 @@ def ssd_model_fn(features, labels, mode, params):
     #cross_entropy = tf.cond(n_positives > 0, lambda: tf.losses.sparse_softmax_cross_entropy(labels=flaten_cls_targets, logits=cls_pred), lambda: 0.)# * (params['negative_ratio'] + 1.)
     #flaten_cls_targets=tf.Print(flaten_cls_targets, [flaten_loc_targets],summarize=50000)
     # cross_entropy=tf.nn.sigmoid_cross_entropy_with_logits(labels=flaten_cls_targets, logits=cls_pred)
-    # cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=flaten_cls_targets, logits=cls_pred) * (params['negative_ratio'] + 1.)
-    cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=flaten_cls_targets, logits=cls_pred) * 1.5
+    cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=flaten_cls_targets, logits=cls_pred) * (params['negative_ratio'] + 1.)
+    # cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=flaten_cls_targets, logits=cls_pred) * 1.5
     # cross_entropy = tf.losses.sigmoid_cross_entropy(labels=flaten_cls_targets, logits=cls_pred) * 1.5
 
     # Create a tensor named cross_entropy for logging purposes.

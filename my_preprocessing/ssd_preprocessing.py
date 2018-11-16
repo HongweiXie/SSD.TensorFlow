@@ -37,9 +37,13 @@ from tensorflow.python.ops import control_flow_ops
 
 slim = tf.contrib.slim
 
-_R_MEAN = 123.68
-_G_MEAN = 116.78
-_B_MEAN = 103.94
+# _R_MEAN = 123.68
+# _G_MEAN = 116.78
+# _B_MEAN = 103.94
+
+_R_MEAN = 127.5
+_G_MEAN = 127.5
+_B_MEAN = 127.5
 
 def _ImageDimensions(image, rank = 3):
   """Returns the dimensions of an image tensor.
@@ -100,6 +104,7 @@ def distort_color(image, color_ordering=0, fast_mode=True, scope=None):
   """
   with tf.name_scope(scope, 'distort_color', [image]):
     if fast_mode:
+      # image=tf.Print(image,[image],message='distort image')
       if color_ordering == 0:
         image = tf.image.random_brightness(image, max_delta=32. / 255.)
         image = tf.image.random_saturation(image, lower=0.5, upper=1.5)
@@ -404,7 +409,7 @@ def _mean_image_subtraction(image, means):
 
   channels = tf.split(axis=2, num_or_size_splits=num_channels, value=image)
   for i in range(num_channels):
-    channels[i] -= means[i]
+    channels[i]=(channels[i])/means[i] -1
   return tf.concat(axis=2, values=channels)
 
 def unwhiten_image(image):
@@ -412,7 +417,7 @@ def unwhiten_image(image):
   num_channels = image.get_shape().as_list()[-1]
   channels = tf.split(axis=2, num_or_size_splits=num_channels, value=image)
   for i in range(num_channels):
-    channels[i] += means[i]
+    channels[i] =(channels[i]+1)*means[i]
   return tf.concat(axis=2, values=channels)
 
 def random_flip_left_right(image, bboxes):
