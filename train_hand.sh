@@ -1,0 +1,1 @@
+python train_mobilenet_ssd.py --num_classes=2 --model_dir=./logs/hand_1 --learning_rate=0.004 --decay_boundaries='1000,20000,80000,100000' --lr_decay_factors='0.1,1,0.25,0.1,0.001' --data_dir=/home/hongwei.xhw/Develop/TF/data/hand --batch_size=32 --checkpoint_path=/home/hongwei.xhw/Develop/TF/model_zoon/ssd_mobilenet_v1_coco_2018_01_28
