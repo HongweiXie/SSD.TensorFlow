@@ -27,14 +27,14 @@ import ssd_preprocessing
 
 slim = tf.contrib.slim
 
-def save_image_with_bbox(image, labels_, scores_, bboxes_):
+def save_image_with_bbox(image,filename, labels_, scores_, bboxes_,keypoints_):
     if not hasattr(save_image_with_bbox, "counter"):
         save_image_with_bbox.counter = 0  # it doesn't exist yet, so initialize it
     save_image_with_bbox.counter += 1
-
+    print(filename)
     img_to_draw = np.copy(image)
 
-    img_to_draw = draw_toolbox.bboxes_draw_on_img(img_to_draw, labels_, scores_, bboxes_, thickness=2)
+    img_to_draw = draw_toolbox.bboxes_draw_on_img(img_to_draw, labels_, scores_, bboxes_, thickness=2,keypoints=keypoints_)
     imsave(os.path.join('../debug/{}.jpg').format(save_image_with_bbox.counter), img_to_draw)
     return save_image_with_bbox.counter
 
@@ -48,10 +48,13 @@ def slim_get_split(file_pattern='{}_????'):
         'image/width': tf.FixedLenFeature([1], tf.int64),
         'image/channels': tf.FixedLenFeature([1], tf.int64),
         'image/shape': tf.FixedLenFeature([3], tf.int64),
+        'image/keypoints_num': tf.FixedLenFeature([1], tf.int64),
         'image/object/bbox/xmin': tf.VarLenFeature(dtype=tf.float32),
         'image/object/bbox/ymin': tf.VarLenFeature(dtype=tf.float32),
         'image/object/bbox/xmax': tf.VarLenFeature(dtype=tf.float32),
         'image/object/bbox/ymax': tf.VarLenFeature(dtype=tf.float32),
+        'image/object/keypoints/x': tf.VarLenFeature(dtype=tf.float32),
+        'image/object/keypoints/y': tf.VarLenFeature(dtype=tf.float32),
         'image/object/bbox/label': tf.VarLenFeature(dtype=tf.int64),
         'image/object/bbox/difficult': tf.VarLenFeature(dtype=tf.int64),
         'image/object/bbox/truncated': tf.VarLenFeature(dtype=tf.int64),
@@ -60,8 +63,11 @@ def slim_get_split(file_pattern='{}_????'):
         'image': slim.tfexample_decoder.Image('image/encoded', 'image/format'),
         'filename': slim.tfexample_decoder.Tensor('image/filename'),
         'shape': slim.tfexample_decoder.Tensor('image/shape'),
+        'keypoints_num': slim.tfexample_decoder.Tensor('image/keypoints_num'),
         'object/bbox': slim.tfexample_decoder.BoundingBox(
                 ['ymin', 'xmin', 'ymax', 'xmax'], 'image/object/bbox/'),
+        'object/kx': slim.tfexample_decoder.Tensor('image/object/keypoints/x'),
+        'object/ky': slim.tfexample_decoder.Tensor('image/object/keypoints/y'),
         'object/label': slim.tfexample_decoder.Tensor('image/object/bbox/label'),
         'object/difficult': slim.tfexample_decoder.Tensor('image/object/bbox/difficult'),
         'object/truncated': slim.tfexample_decoder.Tensor('image/object/bbox/truncated'),
@@ -86,23 +92,30 @@ def slim_get_split(file_pattern='{}_????'):
                     shuffle=True,
                     num_epochs=1)
 
-    [org_image, filename, shape, glabels_raw, gbboxes_raw, isdifficult] = provider.get(['image', 'filename', 'shape',
+    keypoints_num=5
+    [org_image, filename, shape, glabels_raw, gbboxes_raw, gkeypoints_x_raw,gkeypoints_y_raw,isdifficult] = provider.get(['image', 'filename', 'shape',
                                                                          'object/label',
                                                                          'object/bbox',
+                                                                         'object/kx',
+                                                                         'object/ky',
                                                                          'object/difficult'])
-    image, glabels, gbboxes = ssd_preprocessing.preprocess_image(org_image, glabels_raw, gbboxes_raw, [300, 300], is_training=True, data_format='channels_first', output_rgb=True)
-    image=tf.Print(image,[image],message='image',summarize=20)
+    gkeypoints_x_raw = tf.reshape(gkeypoints_x_raw, (-1, keypoints_num))
+    gkeypoints_y_raw = tf.reshape(gkeypoints_y_raw, (-1, keypoints_num))
+    gkeypoints_raw = tf.stack([gkeypoints_x_raw, gkeypoints_y_raw], axis=-1)
+    image, glabels, gbboxes, gkeypoints = ssd_preprocessing.preprocess_image(org_image, glabels_raw, gbboxes_raw, gkeypoints_raw,[300, 300], is_training=True, data_format='channels_first', output_rgb=True)
+    # image=tf.Print(image,[image],message='image',summarize=20)
     image = tf.transpose(image, perm=(1, 2, 0))
     save_image_op = tf.py_func(save_image_with_bbox,
                             [ssd_preprocessing.unwhiten_image(image),
+                             filename,
                             tf.clip_by_value(glabels, 0, tf.int64.max),
                             tf.ones_like(glabels),
-                            gbboxes],
+                            gbboxes,gkeypoints],
                             tf.int64, stateful=True)
     return save_image_op
 
 if __name__ == '__main__':
-    save_image_op = slim_get_split('/home/sixd-ailabs/Develop/Human/Hand/diandu/test/tf_record/val-*')
+    save_image_op = slim_get_split('/home/sixd-ailabs/Develop/Human/Hand/diandu/test/tf_record/train-*')
     # Create the graph, etc.
     init_op = tf.group([tf.local_variables_initializer(), tf.local_variables_initializer(), tf.tables_initializer()])
 
@@ -118,6 +131,7 @@ if __name__ == '__main__':
     try:
         while not coord.should_stop():
             # Run training steps or whatever
+            # print(sess.run(tf.Print(filename,[filename],message='filename')))
             print(sess.run(save_image_op))
 
     except tf.errors.OutOfRangeError:

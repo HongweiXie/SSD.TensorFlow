@@ -34,7 +34,7 @@ from __future__ import print_function
 
 import tensorflow as tf
 from tensorflow.python.ops import control_flow_ops
-
+import cv2
 slim = tf.contrib.slim
 
 # _R_MEAN = 123.68
@@ -138,7 +138,38 @@ def distort_color(image, color_ordering=0, fast_mode=True, scope=None):
     # The random_* ops do not necessarily clamp.
     return tf.clip_by_value(image, 0.0, 1.0)
 
-def ssd_random_sample_patch(image, labels, bboxes, ratio_list=[0.1, 0.3, 0.5, 0.7, 0.9, 1.], name=None):
+def check_keypoints(keypoints,roi):
+    p1 = tf.div(tf.cast(tf.reduce_sum(keypoints[:, 0:2], axis=1), dtype=tf.float32), 2)
+    p2 = tf.div(tf.cast(tf.reduce_sum(keypoints[:, 1:3], axis=1), dtype=tf.float32), 2)
+    x1 = p1[:, 0]
+    y1 = p1[:, 1]
+    x2 = p2[:, 0]
+    y2 = p2[:, 1]
+    mask_k_min = tf.logical_or(
+        tf.logical_and(
+            tf.logical_and(tf.greater(y1, roi[0]), tf.greater(x1, roi[1])),
+            tf.logical_and(tf.greater(y2, roi[0]), tf.greater(x2, roi[1]))
+        ),
+        tf.logical_and(
+            tf.logical_and(tf.less(y1, -1), tf.less(x1, -1)),
+            tf.logical_and(tf.less(y2, -1), tf.less(x2, -1))
+        ))
+    mask_k_max = tf.logical_and(
+        tf.logical_and(tf.less(y1, roi[2]), tf.less(x1, roi[3])),
+        tf.logical_and(tf.less(y2, roi[2]), tf.less(x2, roi[3]))
+    )
+
+    mask_k = tf.logical_and(mask_k_min, mask_k_max)
+    return mask_k
+
+def check_bbox_center(bboxes,roi):
+    center_x, center_y = (bboxes[:, 1] + bboxes[:, 3]) / 2, (bboxes[:, 0] + bboxes[:, 2]) / 2
+    mask_min = tf.logical_and(tf.greater(center_y, roi[0]), tf.greater(center_x, roi[1]))
+    mask_max = tf.logical_and(tf.less(center_y, roi[2]), tf.less(center_x, roi[3]))
+    mask = tf.logical_and(mask_min, mask_max)
+    return mask
+
+def ssd_random_sample_patch(image, labels, bboxes, keypoints,ratio_list=[0.1, 0.3, 0.5, 0.7, 0.9, 1.], name=None):
   '''ssd_random_sample_patch.
   select one min_iou
   sample _width and _height from [0-width] and [0-height]
@@ -149,25 +180,10 @@ def ssd_random_sample_patch(image, labels, bboxes, ratio_list=[0.1, 0.3, 0.5, 0.
   '''
   def sample_width_height(width, height):
     with tf.name_scope('sample_width_height'):
-      index = 0
-      max_attempt = 10
-      sampled_width, sampled_height = width, height
-
-      def condition(index, sampled_width, sampled_height, width, height):
-        return tf.logical_or(tf.logical_and(tf.logical_or(tf.greater(sampled_width, sampled_height * 2),
-                                                        tf.greater(sampled_height, sampled_width * 2)),
-                                            tf.less(index, max_attempt)),
-                            tf.less(index, 1))
-
-      def body(index, sampled_width, sampled_height, width, height):
-        sampled_width = tf.random_uniform([1], minval=0.3, maxval=0.999, dtype=tf.float32)[0] * width
-        sampled_height = tf.random_uniform([1], minval=0.3, maxval=0.999, dtype=tf.float32)[0] *height
-
-        return index+1, sampled_width, sampled_height, width, height
-
-      [index, sampled_width, sampled_height, _, _] = tf.while_loop(condition, body,
-                                         [index, sampled_width, sampled_height, width, height], parallel_iterations=4, back_prop=False, swap_memory=True)
-
+      aspect_ratio=width*1.0/height
+      sampled_width = tf.random_uniform([1], minval=0.5, maxval=0.999, dtype=tf.float32)[0] * width
+      aspect_ratio_new =tf.random_uniform([1],minval=aspect_ratio-0.2,maxval=aspect_ratio+0.2,dtype=tf.float32)[0]
+      sampled_height=tf.minimum(height-1,sampled_width/aspect_ratio_new)
       return tf.cast(sampled_width, tf.int32), tf.cast(sampled_height, tf.int32)
 
   def jaccard_with_anchors(roi, bboxes):
@@ -183,12 +199,25 @@ def ssd_random_sample_patch(image, labels, bboxes, ratio_list=[0.1, 0.3, 0.5, 0.
       jaccard = tf.div(inter_vol, union_vol)
       return jaccard
 
+  def overlap_ratio_with_anchors(roi, bboxes):
+    with tf.name_scope('jaccard_with_anchors'):
+      int_ymin = tf.maximum(roi[0], bboxes[:, 0])
+      int_xmin = tf.maximum(roi[1], bboxes[:, 1])
+      int_ymax = tf.minimum(roi[2], bboxes[:, 2])
+      int_xmax = tf.minimum(roi[3], bboxes[:, 3])
+      h = tf.maximum(int_ymax - int_ymin, 0.)
+      w = tf.maximum(int_xmax - int_xmin, 0.)
+      inter_vol = h * w
+      bboxes_area = (bboxes[:, 2] - bboxes[:, 0]) * (bboxes[:, 3] - bboxes[:, 1])
+      overlap_ratio = tf.div(inter_vol, bboxes_area)
+      return overlap_ratio
+
   def areas(bboxes):
     with tf.name_scope('bboxes_areas'):
       vol = (bboxes[:, 3] - bboxes[:, 1]) * (bboxes[:, 2] - bboxes[:, 0])
       return vol
 
-  def check_roi_center(width, height, labels, bboxes):
+  def check_roi_center(width, height, labels, bboxes, keypoints):
     with tf.name_scope('check_roi_center'):
       index = 0
       max_attempt = 20
@@ -196,7 +225,12 @@ def ssd_random_sample_patch(image, labels, bboxes, ratio_list=[0.1, 0.3, 0.5, 0.
       float_width = tf.cast(width, tf.float32)
       float_height = tf.cast(height, tf.float32)
       mask = tf.cast(tf.zeros_like(labels, dtype=tf.uint8), tf.bool)
-      center_x, center_y = (bboxes[:, 1] + bboxes[:, 3]) / 2, (bboxes[:, 0] + bboxes[:, 2]) / 2
+      # center_x, center_y = (bboxes[:, 1] + bboxes[:, 3]) / 2, (bboxes[:, 0] + bboxes[:, 2]) / 2
+
+      # select keypoints whoes value > 0
+      # keypoint_mask = tf.reduce_max(tf.cast(tf.reduce_max(keypoints, axis=-1) >= 0, dtype=tf.int32), axis=-1) > 0
+      # valid_keypoints = tf.boolean_mask(keypoints, keypoint_mask)
+      # num_valid=tf.shape(valid_keypoints)[0]
 
       def condition(index, roi, mask):
         return tf.logical_or(tf.logical_and(tf.reduce_sum(tf.cast(mask, tf.int32)) < 1,
@@ -209,56 +243,69 @@ def ssd_random_sample_patch(image, labels, bboxes, ratio_list=[0.1, 0.3, 0.5, 0.
         x = tf.random_uniform([], minval=0, maxval=width - sampled_width, dtype=tf.int32)
         y = tf.random_uniform([], minval=0, maxval=height - sampled_height, dtype=tf.int32)
 
+        # y_o= tf.cast(tf.reduce_max(y2)*tf.cast(width,dtype=tf.float32),dtype=tf.int32)+1
+        # y=height - sampled_height
+
         roi = [tf.cast(y, tf.float32) / float_height,
               tf.cast(x, tf.float32) / float_width,
               tf.cast(y + sampled_height, tf.float32) / float_height,
               tf.cast(x + sampled_width, tf.float32) / float_width]
 
-        mask_min = tf.logical_and(tf.greater(center_y, roi[0]), tf.greater(center_x, roi[1]))
-        mask_max = tf.logical_and(tf.less(center_y, roi[2]), tf.less(center_x, roi[3]))
-        mask = tf.logical_and(mask_min, mask_max)
+        # mask_min = tf.logical_and(tf.greater(center_y, roi[0]), tf.greater(center_x, roi[1]))
+        # mask_max = tf.logical_and(tf.less(center_y, roi[2]), tf.less(center_x, roi[3]))
+        # mask = tf.logical_and(mask_min, mask_max)
+        mask=check_bbox_center(bboxes,roi)
+        mask=tf.Print(mask,[mask],message='mask before',summarize=100)
 
+        mask_k=check_keypoints(keypoints,roi)
+
+        mask=tf.logical_and(mask_k,mask)
+        mask = tf.Print(mask, [mask], message='mask after', summarize=100)
+        index=tf.Print(index,[index],message='index')
         return index + 1, roi, mask
 
       [index, roi, mask] = tf.while_loop(condition, body, [index, roi, mask], parallel_iterations=10, back_prop=False, swap_memory=True)
 
       mask_labels = tf.boolean_mask(labels, mask)
       mask_bboxes = tf.boolean_mask(bboxes, mask)
+      mask_keypoints= tf.boolean_mask(keypoints,mask)
 
-      return roi, mask_labels, mask_bboxes
-  def check_roi_overlap(width, height, labels, bboxes, min_iou):
+      return roi, mask_labels, mask_bboxes,mask_keypoints
+
+  def check_roi_overlap(width, height, labels, bboxes, keypoints, min_iou):
     with tf.name_scope('check_roi_overlap'):
       index = 0
       max_attempt = 50
       roi = [0., 0., 1., 1.]
       mask_labels = labels
       mask_bboxes = bboxes
+      mask_keypoints=keypoints
 
-      def condition(index, roi, mask_labels, mask_bboxes):
-        return tf.logical_or(tf.logical_or(tf.logical_and(tf.reduce_sum(tf.cast(jaccard_with_anchors(roi, mask_bboxes) < min_iou, tf.int32)) > 0,
+      def condition(index, roi, mask_labels, mask_bboxes,mask_keypoints):
+        return tf.logical_or(tf.logical_and(tf.reduce_sum(tf.cast(overlap_ratio_with_anchors(roi, mask_bboxes) < min_iou, tf.int32)) > 0,
                                                         tf.less(index, max_attempt)),
-                                          tf.less(index, 1)),
-                            tf.less(tf.shape(mask_labels)[0], 1))
+                                          tf.less(index, 1))
 
-      def body(index, roi, mask_labels, mask_bboxes):
-        roi, mask_labels, mask_bboxes = check_roi_center(width, height, labels, bboxes)
-        return index+1, roi, mask_labels, mask_bboxes
+      def body(index, roi, mask_labels, mask_bboxes,mask_keypoints):
+        index = tf.Print(index, [index], message='check_roi_overlap index')
+        roi, mask_labels, mask_bboxes, mask_keypoints = check_roi_center(width, height, labels, bboxes, keypoints)
+        return index+1, roi, mask_labels, mask_bboxes,mask_keypoints
 
-      [index, roi, mask_labels, mask_bboxes] = tf.while_loop(condition, body, [index, roi, mask_labels, mask_bboxes], parallel_iterations=16, back_prop=False, swap_memory=True)
+      [index, roi, mask_labels, mask_bboxes, mask_keypoints] = tf.while_loop(condition, body, [index, roi, mask_labels, mask_bboxes, mask_keypoints], parallel_iterations=16, back_prop=False, swap_memory=True)
 
       return tf.cond(tf.greater(tf.shape(mask_labels)[0], 0),
                   lambda : (tf.cast([roi[0] * tf.cast(height, tf.float32),
                             roi[1] * tf.cast(width, tf.float32),
                             (roi[2] - roi[0]) * tf.cast(height, tf.float32),
-                            (roi[3] - roi[1]) * tf.cast(width, tf.float32)], tf.int32), mask_labels, mask_bboxes),
-                  lambda : (tf.cast([0, 0, height, width], tf.int32), labels, bboxes))
+                            (roi[3] - roi[1]) * tf.cast(width, tf.float32)], tf.int32), mask_labels, mask_bboxes,mask_keypoints),
+                  lambda : (tf.cast([0, 0, height, width], tf.int32), labels, bboxes, keypoints))
 
 
-  def sample_patch(image, labels, bboxes, min_iou):
+  def sample_patch(image, labels, bboxes, keypoints, min_iou):
     with tf.name_scope('sample_patch'):
       height, width, depth = _ImageDimensions(image, rank=3)
 
-      roi_slice_range, mask_labels, mask_bboxes = check_roi_overlap(width, height, labels, bboxes, min_iou)
+      roi_slice_range, mask_labels, mask_bboxes, mask_keypoints = check_roi_overlap(width, height, labels, bboxes, keypoints, min_iou)
 
       scale = tf.cast(tf.stack([height, width, height, width]), mask_bboxes.dtype)
       mask_bboxes = mask_bboxes * scale
@@ -266,6 +313,11 @@ def ssd_random_sample_patch(image, labels, bboxes, ratio_list=[0.1, 0.3, 0.5, 0.
       # Add offset.
       offset = tf.cast(tf.stack([roi_slice_range[0], roi_slice_range[1], roi_slice_range[0], roi_slice_range[1]]), mask_bboxes.dtype)
       mask_bboxes = mask_bboxes - offset
+
+      scale2=tf.cast(tf.stack([width,height]),mask_keypoints.dtype)
+      mask_keypoints_absolute=mask_keypoints*scale2
+      offset2= tf.cast(tf.stack([roi_slice_range[1],roi_slice_range[0]]),mask_keypoints.dtype)
+      mask_keypoints_absolute =mask_keypoints_absolute-offset2
 
       cliped_ymin = tf.maximum(0., mask_bboxes[:, 0])
       cliped_xmin = tf.maximum(0., mask_bboxes[:, 1])
@@ -276,23 +328,30 @@ def ssd_random_sample_patch(image, labels, bboxes, ratio_list=[0.1, 0.3, 0.5, 0.
       # Rescale to target dimension.
       scale = tf.cast(tf.stack([roi_slice_range[2], roi_slice_range[3],
                                 roi_slice_range[2], roi_slice_range[3]]), mask_bboxes.dtype)
-
+      scale2=tf.cast(tf.stack([roi_slice_range[3],roi_slice_range[2]]),mask_keypoints.dtype)
+      mask_keypoints=tf.where(mask_keypoints>=0,mask_keypoints_absolute/scale2,mask_keypoints)
+      mask_keypoints=tf.Print(mask_keypoints,[mask_keypoints],message='kepoints_after_crop',summarize=100)
       return tf.cond(tf.logical_or(tf.less(roi_slice_range[2], 1), tf.less(roi_slice_range[3], 1)),
-                  lambda: (image, labels, bboxes),
+                  lambda: (image, labels, bboxes,keypoints),
                   lambda: (tf.slice(image, [roi_slice_range[0], roi_slice_range[1], 0], [roi_slice_range[2], roi_slice_range[3], -1]),
-                                  mask_labels, mask_bboxes / scale))
+                                  mask_labels, mask_bboxes / scale,mask_keypoints))
 
   with tf.name_scope('ssd_random_sample_patch'):
     image = tf.convert_to_tensor(image, name='image')
 
     min_iou_list = tf.convert_to_tensor(ratio_list)
+    # tf.multinomial Draws samples from a multinomial distribution.
+    # Example:
+    # samples has shape [1, 5], where each value is either 0 or 1 with equal
+    # probability.
+    # samples = tf.multinomial(tf.log([[10., 10.]]), 5)
     samples_min_iou = tf.multinomial(tf.log([[1. / len(ratio_list)] * len(ratio_list)]), 1)
 
     sampled_min_iou = min_iou_list[tf.cast(samples_min_iou[0][0], tf.int32)]
 
-    return tf.cond(tf.less(sampled_min_iou, 1.), lambda: sample_patch(image, labels, bboxes, sampled_min_iou), lambda: (image, labels, bboxes))
+    return tf.cond(tf.less(sampled_min_iou, 1.), lambda: sample_patch(image, labels, bboxes, keypoints,sampled_min_iou), lambda: (image, labels, bboxes,keypoints))
 
-def ssd_random_expand(image, bboxes, ratio=2., name=None):
+def ssd_random_expand(image, bboxes,keypoints, ratio=2., name=None):
   with tf.name_scope('ssd_random_expand'):
     image = tf.convert_to_tensor(image, name='image')
     if image.get_shape().ndims != 3:
@@ -317,8 +376,14 @@ def ssd_random_expand(image, bboxes, ratio=2., name=None):
 
     scale = tf.cast(tf.stack([height, width, height, width]), bboxes.dtype)
     absolute_bboxes = bboxes * scale + tf.cast(tf.stack([y, x, y, x]), bboxes.dtype)
+    scale2 =tf.cast(tf.stack([width,height]),keypoints.dtype)
+    absolute_keypoints=keypoints*scale2+tf.cast(tf.stack([x,y]),keypoints.dtype)
 
-    return big_canvas, absolute_bboxes / tf.cast(tf.stack([canvas_height, canvas_width, canvas_height, canvas_width]), bboxes.dtype)
+    relative_bboxes=absolute_bboxes / tf.cast(tf.stack([canvas_height, canvas_width, canvas_height, canvas_width]), bboxes.dtype)
+    relative_keypoints=absolute_keypoints/ tf.cast(tf.stack([canvas_width, canvas_height]), bboxes.dtype)
+
+    relative_keypoints=tf.where(keypoints>0,relative_keypoints,keypoints)
+    return big_canvas, relative_bboxes,relative_keypoints
 
 # def ssd_random_sample_patch_wrapper(image, labels, bboxes):
 #   with tf.name_scope('ssd_random_sample_patch_wrapper'):
@@ -350,9 +415,9 @@ def ssd_random_expand(image, bboxes, ratio=2., name=None):
 #                 lambda : (image, labels, bboxes),
 #                 lambda : (orgi_image, orgi_labels, orgi_bboxes))
 
-def ssd_random_sample_patch_wrapper(image, labels, bboxes):
+def ssd_random_sample_patch_wrapper(image, labels, bboxes,keypoints):
   with tf.name_scope('ssd_random_sample_patch_wrapper'):
-    orgi_image, orgi_labels, orgi_bboxes = image, labels, bboxes
+    orgi_image, orgi_labels, orgi_bboxes,orgi_keypoints = image, labels, bboxes, keypoints
     def check_bboxes(bboxes):
       areas = (bboxes[:, 3] - bboxes[:, 1]) * (bboxes[:, 2] - bboxes[:, 0])
       return tf.logical_and(tf.logical_and(areas < 0.9, areas > 0.001),
@@ -360,27 +425,30 @@ def ssd_random_sample_patch_wrapper(image, labels, bboxes):
 
     index = 0
     max_attempt = 3
-    def condition(index, image, labels, bboxes, orgi_image, orgi_labels, orgi_bboxes):
+    def condition(index, image, labels, bboxes,keypoints, orgi_image, orgi_labels, orgi_bboxes, orgi_keypoints):
       return tf.logical_or(tf.logical_and(tf.reduce_sum(tf.cast(check_bboxes(bboxes), tf.int64)) < 1, tf.less(index, max_attempt)), tf.less(index, 1))
 
-    def body(index, image, labels, bboxes, orgi_image, orgi_labels, orgi_bboxes):
-      image, bboxes = tf.cond(tf.random_uniform([], minval=0., maxval=1., dtype=tf.float32) < 0.5,
-                      lambda: (orgi_image, orgi_bboxes),
-                      lambda: ssd_random_expand(orgi_image, orgi_bboxes, tf.random_uniform([1], minval=1.01, maxval=1.5, dtype=tf.float32)[0]))
+    def body(index, image, labels, bboxes, keypoints, orgi_image, orgi_labels, orgi_bboxes, orgi_keypoints):
+      index=tf.Print(index,[index],message='ssd_random_sample_patch_wrapper index')
+      image, bboxes,keypoints = tf.cond(tf.random_uniform([], minval=0., maxval=1., dtype=tf.float32) < 0.5,
+                      lambda: (orgi_image, orgi_bboxes,orgi_keypoints),
+                      lambda: ssd_random_expand(orgi_image, orgi_bboxes, orgi_keypoints,tf.random_uniform([1], minval=1.01, maxval=1.3, dtype=tf.float32)[0]))
+
+      image, labels, bboxes, keypoints = random_rotation(image, labels,bboxes, keypoints)
       # Distort image and bounding boxes.
       # random_sample_image, labels, bboxes = ssd_random_sample_patch(image, orgi_labels, bboxes, ratio_list=[-0.1, 0.1, 0.3, 0.5, 0.7, 0.9, 1.])
-      random_sample_image, labels, bboxes = ssd_random_sample_patch(image, orgi_labels, bboxes,
-                                                                    ratio_list=[0.5, 0.7, 0.9, 1.])
+      random_sample_image, labels, bboxes, keypoints = ssd_random_sample_patch(image, labels, bboxes, keypoints,
+                                                                    ratio_list=[0.5, 0.7, 0.9, 1., 1., 1.])
       random_sample_image.set_shape([None, None, 3])
-      return index+1, random_sample_image, labels, bboxes, orgi_image, orgi_labels, orgi_bboxes
+      return index+1, random_sample_image, labels, bboxes, keypoints, orgi_image, orgi_labels, orgi_bboxes,orgi_keypoints
 
-    [index, image, labels, bboxes, orgi_image, orgi_labels, orgi_bboxes] = tf.while_loop(condition, body, [index,  image, labels, bboxes, orgi_image, orgi_labels, orgi_bboxes], parallel_iterations=4, back_prop=False, swap_memory=True)
+    [index, image, labels, bboxes, keypoints, orgi_image, orgi_labels, orgi_bboxes, orgi_keypoints] = tf.while_loop(condition, body, [index,  image, labels, bboxes, keypoints, orgi_image, orgi_labels, orgi_bboxes,orgi_keypoints], parallel_iterations=4, back_prop=False, swap_memory=True)
 
     valid_mask = check_bboxes(bboxes)
     labels, bboxes = tf.boolean_mask(labels, valid_mask), tf.boolean_mask(bboxes, valid_mask)
     return tf.cond(tf.less(index, max_attempt),
-                lambda : (image, labels, bboxes),
-                lambda : (orgi_image, orgi_labels, orgi_bboxes))
+                lambda : (image, labels, bboxes,keypoints),
+                lambda : (orgi_image, orgi_labels, orgi_bboxes,orgi_keypoints))
 
 def _mean_image_subtraction(image, means):
   """Subtracts the given means from each image channel.
@@ -422,7 +490,7 @@ def unwhiten_image(image):
     channels[i] =(channels[i]+1)*means[i]
   return tf.concat(axis=2, values=channels)
 
-def random_flip_left_right(image, bboxes):
+def random_flip_left_right(image, bboxes, keypoints):
   with tf.name_scope('random_flip_left_right'):
     uniform_random = tf.random_uniform([], 0, 1.0)
     mirror_cond = tf.less(uniform_random, .5)
@@ -432,9 +500,107 @@ def random_flip_left_right(image, bboxes):
     mirror_bboxes = tf.stack([bboxes[:, 0], 1 - bboxes[:, 3],
                               bboxes[:, 2], 1 - bboxes[:, 1]], axis=-1)
     bboxes = tf.cond(mirror_cond, lambda: mirror_bboxes, lambda: bboxes)
-    return result, bboxes
 
-def preprocess_for_train(image, labels, bboxes, out_shape, data_format='channels_first', scope='ssd_preprocessing_train', output_rgb=True):
+    mirror_keypoints =tf.stack([tf.where(keypoints[:,:,0]<0,keypoints[:,:,0],1-keypoints[:,:,0]),keypoints[:,:,1]],axis=-1)
+    keypoints=tf.cond(mirror_cond, lambda: mirror_keypoints, lambda: keypoints)
+    return result, bboxes, keypoints
+
+def tf_get_rotation_matrix_2d(centerx,centery,angle):
+   alpha=tf.cast(tf.cos(angle),tf.float32)
+   beta=tf.cast(tf.sin(angle),tf.float32)
+   c1=(1-alpha)*centerx-beta*centery
+   c2=beta*centerx+(1-alpha)*centery
+   return tf.squeeze(tf.stack([[alpha,beta,c1],[-beta,alpha,c2]]))
+
+def random_rotation(image, labels, bboxes,keypoints):
+  with tf.name_scope('random_rotation'):
+
+      max_attempt=20
+      shape = tf.shape(image)
+      def condition(index, angle, labels, bboxes,keypoints, orgi_labels, orgi_bboxes, orgi_keypoints):
+          return tf.logical_or(
+              tf.logical_and(tf.shape(bboxes)[0] < 1, tf.less(index, max_attempt)),
+              tf.less(index, 1))
+
+
+      def body(index, angle, labels, bboxes,keypoints, orgi_labels, orgi_bboxes, orgi_keypoints):
+
+          roi=[0.,0.,1.,1.]
+          angle = tf.random_uniform([], minval=-25., maxval=25., dtype=tf.float32) * (3.1415926 / 180)
+
+          # shape=tf.Print(shape,[shape],message='shape',summarize=100)
+          rot_m = tf_get_rotation_matrix_2d(tf.cast(shape[1] / 2, tf.float32), tf.cast(shape[0] / 2, tf.float32), angle)
+          # rot_m=tf.Print(rot_m,[rot_m],message='rot_m',summarize=100)
+          scale = tf.cast(tf.stack([shape[1], shape[0]]), dtype=tf.float32)
+          # keypoints=tf.Print(keypoints,[keypoints],message='keypoints',summarize=100)
+          keypoints_absolute = orgi_keypoints * scale
+          new_keypoints_x = keypoints_absolute[:, :, 0] * rot_m[0, 0] + keypoints_absolute[:, :, 1] * rot_m[0, 1] + \
+                            rot_m[0, 2]
+          new_keypoints_y = keypoints_absolute[:, :, 0] * rot_m[1, 0] + keypoints_absolute[:, :, 1] * rot_m[1, 1] + \
+                            rot_m[1, 2]
+          keypoints_new = tf.stack([new_keypoints_x, new_keypoints_y], axis=-1)
+          keypoints_new = tf.div(keypoints_new, scale)
+          keypoints = tf.where(orgi_keypoints > 0, keypoints_new, orgi_keypoints)
+          # keypoints=tf.Print(keypoints,[keypoints],message='keypoints_new',summarize=100)
+          mask_k=check_keypoints(keypoints,roi)
+
+          xmin = orgi_bboxes[:, 1]
+          ymin = orgi_bboxes[:, 0]
+          xmax = orgi_bboxes[:, 3]
+          ymax = orgi_bboxes[:, 2]
+          lefttop = tf.stack([xmin, ymin], axis=-1)
+          leftbottom = tf.stack([xmin, ymax], axis=-1)
+          righttop = tf.stack([xmax, ymin], axis=-1)
+          rightbottom = tf.stack([xmax, ymax], axis=-1)
+          corners = tf.stack([lefttop, leftbottom, righttop, rightbottom], axis=1)
+          corners_absolute = corners * scale
+          new_corners_x = corners_absolute[:, :, 0] * rot_m[0, 0] + corners_absolute[:, :, 1] * rot_m[0, 1] + rot_m[
+              0, 2]
+          new_corners_y = corners_absolute[:, :, 0] * rot_m[1, 0] + corners_absolute[:, :, 1] * rot_m[1, 1] + rot_m[
+              1, 2]
+          new_corners_x = tf.div(new_corners_x, tf.cast(shape[1], dtype=tf.float32))
+          new_corners_y = tf.div(new_corners_y, tf.cast(shape[0], dtype=tf.float32))
+          # corners_new = tf.stack([new_corners_x, new_corners_y], axis=-1)
+          # corners_new = tf.div(corners_new, scale)
+          xmin_new = tf.reduce_min(new_corners_x, 1)
+          xmax_new = tf.reduce_max(new_corners_x, 1)
+          ymin_new = tf.reduce_min(new_corners_y, 1)
+          ymax_new = tf.reduce_max(new_corners_y, 1)
+          bboxes = tf.stack([ymin_new, xmin_new, ymax_new, xmax_new], axis=-1)
+
+          mask=check_bbox_center(bboxes,roi)
+          mask=tf.logical_and(mask,mask_k)
+          mask=tf.Print(mask,[mask],message='rotate mask',summarize=100)
+
+          labels=tf.boolean_mask(orgi_labels,mask)
+          bboxes=tf.boolean_mask(bboxes,mask)
+          keypoints=tf.boolean_mask(keypoints,mask)
+
+          return index+1,angle,labels,bboxes,keypoints,orgi_labels, orgi_bboxes, orgi_keypoints
+
+      def random_rotate(image, labels, bboxes, keypoints):
+          index = 0
+          angle=0.0
+          orgi_image, orgi_labels, orgi_bboxes, orgi_keypoints = image, labels, bboxes, keypoints
+          [index, angle, labels, bboxes, keypoints, orgi_labels, orgi_bboxes,
+           orgi_keypoints] = tf.while_loop(
+              condition, body,
+              [index, angle, labels, bboxes, keypoints, orgi_labels, orgi_bboxes, orgi_keypoints],
+              parallel_iterations=2, back_prop=False, swap_memory=True)
+          image = tf.contrib.image.rotate([orgi_image], [angle], interpolation='BILINEAR')[0]
+          return tf.cond(tf.less(index,max_attempt),
+                         lambda : (image,labels,bboxes,keypoints),
+                         lambda : (orgi_image, orgi_labels, orgi_bboxes, orgi_keypoints))
+
+
+      uniform_random = tf.random_uniform([], 0, 1.0)
+      rotate_cond = tf.less(uniform_random, 0.5)
+      return tf.cond(rotate_cond,
+                     lambda :random_rotate(image, labels, bboxes,keypoints),
+                     lambda : (image, labels, bboxes,keypoints))
+
+
+def preprocess_for_train(image, labels, bboxes, keypoints, out_shape, data_format='channels_first', scope='ssd_preprocessing_train', output_rgb=True):
   """Preprocesses the given image for training.
 
   Args:
@@ -447,9 +613,12 @@ def preprocess_for_train(image, labels, bboxes, out_shape, data_format='channels
     A preprocessed image.
   """
   with tf.name_scope(scope, 'ssd_preprocessing_train', [image, labels, bboxes]):
+    # keypoints=tf.Print(keypoints,[tf.shape(keypoints)],message='keypoints_shape')
+    # bboxes=tf.Print(bboxes,[tf.shape(bboxes)],message='bboxes_shape')
     if image.get_shape().ndims != 3:
       raise ValueError('Input must be of size [height, width, C>0]')
     # Convert to float scaled [0, 1].
+    # print(labels,bboxes)
     orig_dtype = image.dtype
     if orig_dtype != tf.float32:
       image = tf.image.convert_image_dtype(image, dtype=tf.float32)
@@ -459,16 +628,19 @@ def preprocess_for_train(image, labels, bboxes, out_shape, data_format='channels
                                           lambda x, ordering: distort_color(x, ordering, True),
                                           num_cases=4)
 
-    random_sample_image, labels, bboxes = ssd_random_sample_patch_wrapper(distort_image, labels, bboxes)
+
+
+    random_sample_image, labels, bboxes,keypoints = ssd_random_sample_patch_wrapper(distort_image, labels, bboxes,keypoints)
     # image, bboxes = tf.cond(tf.random_uniform([1], minval=0., maxval=1., dtype=tf.float32)[0] < 0.25,
     #                     lambda: (image, bboxes),
     #                     lambda: ssd_random_expand(image, bboxes, tf.random_uniform([1], minval=2, maxval=4, dtype=tf.int32)[0]))
 
     # # Distort image and bounding boxes.
     # random_sample_image, labels, bboxes = ssd_random_sample_patch(image, labels, bboxes, ratio_list=[0.1, 0.3, 0.5, 0.7, 0.9, 1.])
-
+    # keypoints = tf.Print(keypoints, [tf.shape(keypoints)], message='keypoints_shape after_sample')
     # Randomly flip the image horizontally.
-    random_sample_flip_image, bboxes = random_flip_left_right(random_sample_image, bboxes)
+    random_sample_flip_image, bboxes, keypoints= random_flip_left_right(random_sample_image, bboxes,keypoints)
+    # keypoints = tf.Print(keypoints, [tf.shape(keypoints)], message='keypoints_shape after_flip')
     # Rescale to VGG input scale.
     random_sample_flip_resized_image = tf.image.resize_images(random_sample_flip_image, out_shape, method=tf.image.ResizeMethod.BILINEAR, align_corners=False)
     random_sample_flip_resized_image.set_shape([None, None, 3])
@@ -482,7 +654,7 @@ def preprocess_for_train(image, labels, bboxes, out_shape, data_format='channels
       final_image = tf.stack([image_channels[2], image_channels[1], image_channels[0]], axis=-1, name='merge_bgr')
     if data_format == 'channels_first':
       final_image = tf.transpose(final_image, perm=(2, 0, 1))
-    return final_image, labels, bboxes
+    return final_image, labels, bboxes,keypoints
 
 def preprocess_for_eval(image, out_shape, data_format='channels_first', scope='ssd_preprocessing_eval', output_rgb=True):
   """Preprocesses the given image for evaluation.
@@ -508,7 +680,7 @@ def preprocess_for_eval(image, out_shape, data_format='channels_first', scope='s
       image = tf.transpose(image, perm=(2, 0, 1))
     return image
 
-def preprocess_image(image, labels, bboxes, out_shape, is_training=False, data_format='channels_first', output_rgb=True):
+def preprocess_image(image, labels, bboxes,keypoints, out_shape, is_training=False, data_format='channels_first', output_rgb=True):
   """Preprocesses the given image.
 
   Args:
@@ -523,6 +695,6 @@ def preprocess_image(image, labels, bboxes, out_shape, is_training=False, data_f
     A preprocessed image.
   """
   if is_training:
-    return preprocess_for_train(image, labels, bboxes, out_shape, data_format=data_format, output_rgb=output_rgb)
+    return preprocess_for_train(image, labels, bboxes,keypoints,out_shape, data_format=data_format, output_rgb=output_rgb)
   else:
     return preprocess_for_eval(image, out_shape, data_format=data_format, output_rgb=output_rgb)

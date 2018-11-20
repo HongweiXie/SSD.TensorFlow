@@ -87,8 +87,8 @@ def _bytes_feature(value):
     value = six.binary_type(value, encoding='utf-8')
   return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
-def _convert_to_example(filename, image_name, image_buffer, bboxes, labels, labels_text,
-                        difficult, truncated, height, width):
+def _convert_to_example(filename, image_name, image_buffer, bboxes, labels,labels_text,
+                        difficult, truncated, keypoints, height, width):
   """Build an Example proto for an example.
 
   Args:
@@ -126,15 +126,27 @@ def _convert_to_example(filename, image_name, image_buffer, bboxes, labels, labe
       else:
           print('Error',labels[i],str(labels_text[i]))
 
+  keypoints_num=len(keypoints[0])
+  kx=[]
+  ky=[]
+  for keypoint in keypoints:
+      assert len(keypoint)==keypoints_num
+      for p in keypoint:
+          kx.append(p[0])
+          ky.append(p[1])
+
   example = tf.train.Example(features=tf.train.Features(feature={
             'image/height': _int64_feature(height),
             'image/width': _int64_feature(width),
             'image/channels': _int64_feature(channels),
             'image/shape': _int64_feature([height, width, channels]),
+            'image/keypoints_num': _int64_feature(keypoints_num),
             'image/object/bbox/xmin': _float_feature(xmin),
             'image/object/bbox/xmax': _float_feature(xmax),
             'image/object/bbox/ymin': _float_feature(ymin),
             'image/object/bbox/ymax': _float_feature(ymax),
+            'image/object/keypoints/x': _float_feature(kx),
+            'image/object/keypoints/y': _float_feature(ky),
             'image/object/bbox/label': _int64_feature(labels),
             'image/object/bbox/label_text': _bytes_list_feature(labels_text),
             'image/object/bbox/difficult': _int64_feature(difficult),
@@ -231,13 +243,15 @@ def _find_image_bounding_boxes(directory, cur_record):
   shape = [int(size.find('height').text),
            int(size.find('width').text),
            int(size.find('depth').text)]
-  assert shape[0]==360 and shape[1]==640 and shape[2]==3
+  # assert shape[0]==360 and shape[1]==640 and shape[2]==3
   # Find annotations.
   bboxes = []
   labels = []
   labels_text = []
   difficult = []
   truncated = []
+  keypoints=[]
+  keypoints_num=5
   for obj in root.findall('object'):
       label = obj.find('name').text
       labels.append(int(dataset_common.HAND_LABLES[label][0]))
@@ -261,7 +275,18 @@ def _find_image_bounding_boxes(directory, cur_record):
                      float(bbox.find('ymax').text) / shape[0],
                      float(bbox.find('xmax').text) / shape[1]
                      ))
-  return bboxes, labels, labels_text, difficult, truncated
+      keypoint=obj.find('keypoints')
+      if keypoint is not None:
+          item=[]
+          for kp in keypoint.findall('keypoint'):
+              item.append((float(kp.find('x').text)/shape[1],float(kp.find('y').text)/shape[0]))
+          keypoints.append(item)
+      else:
+          item=[]
+          for i in range(keypoints_num):
+              item.append((-100,-100))
+          keypoints.append(item)
+  return bboxes, labels, labels_text, difficult, truncated, keypoints
 
 def _process_image_files_batch(coder, thread_index, ranges, name, directory, all_records, num_shards):
   """Processes and saves list of images as TFRecord in 1 thread.
@@ -302,14 +327,14 @@ def _process_image_files_batch(coder, thread_index, ranges, name, directory, all
       cur_record = all_records[i]
       filename = os.path.join(directory, cur_record[0], cur_record[1])
 
-      bboxes, labels, labels_text, difficult, truncated = _find_image_bounding_boxes(directory, cur_record)
+      bboxes, labels, labels_text, difficult, truncated,keypoints = _find_image_bounding_boxes(directory, cur_record)
       if len(bboxes)<=0:
           print(filename)
           continue
       image_buffer, height, width = _process_image(filename, coder)
 
       example = _convert_to_example(filename, cur_record[1], image_buffer, bboxes, labels, labels_text,
-                                    difficult, truncated, height, width)
+                                    difficult, truncated, keypoints, height, width)
       writer.write(example.SerializeToString())
       shard_counter += 1
       counter += 1
@@ -401,7 +426,7 @@ def main(unused_argv):
   print('Saving results to %s' % FLAGS.output_directory)
 
   # Run it!
-  # _process_dataset('val', FLAGS.dataset_directory, parse_comma_list(FLAGS.validation_splits), FLAGS.validation_shards)
+  _process_dataset('val', FLAGS.dataset_directory, parse_comma_list(FLAGS.validation_splits), FLAGS.validation_shards)
   _process_dataset('train', FLAGS.dataset_directory, parse_comma_list(FLAGS.train_splits), FLAGS.train_shards)
 
 if __name__ == '__main__':

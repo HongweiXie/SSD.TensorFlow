@@ -171,10 +171,13 @@ def slim_get_batch(num_classes, batch_size, split_name, file_pattern, num_reader
         'image/width': tf.FixedLenFeature([1], tf.int64),
         'image/channels': tf.FixedLenFeature([1], tf.int64),
         'image/shape': tf.FixedLenFeature([3], tf.int64),
+        'image/keypoints_num': tf.FixedLenFeature([1], tf.int64),
         'image/object/bbox/xmin': tf.VarLenFeature(dtype=tf.float32),
         'image/object/bbox/ymin': tf.VarLenFeature(dtype=tf.float32),
         'image/object/bbox/xmax': tf.VarLenFeature(dtype=tf.float32),
         'image/object/bbox/ymax': tf.VarLenFeature(dtype=tf.float32),
+        'image/object/keypoints/x': tf.VarLenFeature(dtype=tf.float32),
+        'image/object/keypoints/y': tf.VarLenFeature(dtype=tf.float32),
         'image/object/bbox/label': tf.VarLenFeature(dtype=tf.int64),
         'image/object/bbox/difficult': tf.VarLenFeature(dtype=tf.int64),
         'image/object/bbox/truncated': tf.VarLenFeature(dtype=tf.int64),
@@ -183,8 +186,11 @@ def slim_get_batch(num_classes, batch_size, split_name, file_pattern, num_reader
         'image': slim.tfexample_decoder.Image('image/encoded', 'image/format'),
         'filename': slim.tfexample_decoder.Tensor('image/filename'),
         'shape': slim.tfexample_decoder.Tensor('image/shape'),
+        'keypoints_num':slim.tfexample_decoder.Tensor('image/keypoints_num'),
         'object/bbox': slim.tfexample_decoder.BoundingBox(
                 ['ymin', 'xmin', 'ymax', 'xmax'], 'image/object/bbox/'),
+        'object/kx': slim.tfexample_decoder.Tensor('image/object/keypoints/x'),
+        'object/ky': slim.tfexample_decoder.Tensor('image/object/keypoints/y'),
         'object/label': slim.tfexample_decoder.Tensor('image/object/bbox/label'),
         'object/difficult': slim.tfexample_decoder.Tensor('image/object/bbox/difficult'),
         'object/truncated': slim.tfexample_decoder.Tensor('image/object/bbox/truncated'),
@@ -213,10 +219,14 @@ def slim_get_batch(num_classes, batch_size, split_name, file_pattern, num_reader
             shuffle=is_training,
             num_epochs=num_epochs)
 
-    [org_image, filename, shape, glabels_raw, gbboxes_raw, isdifficult] = provider.get(['image', 'filename', 'shape',
-                                                                     'object/label',
-                                                                     'object/bbox',
-                                                                     'object/difficult'])
+    keypoints_num=5
+    [org_image, filename, shape, glabels_raw, gbboxes_raw, gkeypoints_x_raw,gkeypoints_y_raw,isdifficult] = \
+        provider.get(['image', 'filename', 'shape',
+                      'object/label',
+                      'object/bbox',
+                      'object/kx',
+                      'object/ky',
+                      'object/difficult'])
 
     if is_training:
         # if all is difficult, then keep the first one
@@ -226,11 +236,13 @@ def slim_get_batch(num_classes, batch_size, split_name, file_pattern, num_reader
 
         glabels_raw = tf.boolean_mask(glabels_raw, isdifficult_mask)
         gbboxes_raw = tf.boolean_mask(gbboxes_raw, isdifficult_mask)
-
+        gkeypoints_x_raw = tf.boolean_mask(tf.reshape(gkeypoints_x_raw,(-1,keypoints_num)),isdifficult_mask)
+        gkeypoints_y_raw = tf.boolean_mask(tf.reshape(gkeypoints_y_raw,(-1,keypoints_num)),isdifficult_mask)
+        gkeypoints_raw=tf.stack([gkeypoints_x_raw,gkeypoints_y_raw],axis=-1)
     # Pre-processing image, labels and bboxes.
 
     if is_training:
-        image, glabels, gbboxes = image_preprocessing_fn(org_image, glabels_raw, gbboxes_raw)
+        image, glabels, gbboxes,gkeypoints = image_preprocessing_fn(org_image, glabels_raw, gbboxes_raw, gkeypoints_raw)
     else:
         image = image_preprocessing_fn(org_image, glabels_raw, gbboxes_raw)
         glabels, gbboxes = glabels_raw, gbboxes_raw

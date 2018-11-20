@@ -384,8 +384,14 @@ def ssd_model_fn(features, labels, mode, params):
 def parse_comma_list(args):
     return [float(s.strip()) for s in args.split(',')]
 
+# CLASSES = ('background',
+#            'aeroplane', 'bicycle', 'bird', 'boat',
+#            'bottle', 'bus', 'car', 'cat', 'chair',
+#            'cow', 'diningtable', 'dog', 'horse',
+#            'motorbike', 'person', 'pottedplant',
+#            'sheep', 'sofa', 'train', 'tvmonitor')
 CLASSES = ('background',
-           'aeroplane', 'bicycle', 'bird', 'boat',
+           'index', 'other', 'bird', 'boat',
            'bottle', 'bus', 'car', 'cat', 'chair',
            'cow', 'diningtable', 'dog', 'horse',
            'motorbike', 'person', 'pottedplant',

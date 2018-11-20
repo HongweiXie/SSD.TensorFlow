@@ -184,7 +184,7 @@ def input_pipeline(dataset_pattern='train-*', is_training=True, batch_size=FLAGS
                                                             ignore_threshold = FLAGS.neg_threshold,
                                                             prior_scaling=[0.1, 0.1, 0.2, 0.2])
 
-        image_preprocessing_fn = lambda image_, labels_, bboxes_ : ssd_preprocessing.preprocess_image(image_, labels_, bboxes_, out_shape, is_training=is_training, data_format=FLAGS.data_format, output_rgb=False)
+        image_preprocessing_fn = lambda image_, labels_, bboxes_,keypoints_: ssd_preprocessing.preprocess_image(image_, labels_, bboxes_, keypoints_,out_shape, is_training=is_training, data_format=FLAGS.data_format, output_rgb=False)
         anchor_encoder_fn = lambda glabels_, gbboxes_: anchor_encoder_decoder.encode_all_anchors(glabels_, gbboxes_, all_anchors, all_num_anchors_depth, all_num_anchors_spatial)
 
         image, _, shape, loc_targets, cls_targets, match_scores = dataset_common.slim_get_batch(FLAGS.num_classes,
