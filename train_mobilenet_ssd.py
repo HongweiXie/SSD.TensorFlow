@@ -123,6 +123,8 @@ tf.app.flags.DEFINE_boolean(
 tf.app.flags.DEFINE_boolean(
     'multi_gpu', True,
     'Whether there is GPU to use for training.')
+tf.app.flags.DEFINE_float(
+    'depth_multiplier', 0.5, 'depth_multipiler for backbone network')
 
 FLAGS = tf.app.flags.FLAGS
 #CUDA_VISIBLE_DEVICES
@@ -274,7 +276,7 @@ def ssd_model_fn(features, labels, mode, params):
 
     #print(all_num_anchors_depth)
     with tf.variable_scope(params['model_scope'], default_name=None, values=[features], reuse=tf.AUTO_REUSE):
-        backbone = MobileNetV1PPNBackbone(params['data_format'])
+        backbone = MobileNetV1PPNBackbone(params['data_format'],depth_multiplier=FLAGS.depth_multiplier)
         feature_layers = backbone.forward(features, is_training=(mode == tf.estimator.ModeKeys.TRAIN))
         #print(feature_layers)
         location_pred, cls_pred = ssd_net.multibox_head(feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])
