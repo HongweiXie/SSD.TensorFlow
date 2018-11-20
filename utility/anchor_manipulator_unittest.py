@@ -62,23 +62,31 @@ def slim_get_split(file_pattern='{}_????'):
     keys_to_features = {
         'image/encoded': tf.FixedLenFeature((), tf.string, default_value=''),
         'image/format': tf.FixedLenFeature((), tf.string, default_value='jpeg'),
+        'image/filename': tf.FixedLenFeature((), tf.string, default_value=''),
         'image/height': tf.FixedLenFeature([1], tf.int64),
         'image/width': tf.FixedLenFeature([1], tf.int64),
         'image/channels': tf.FixedLenFeature([1], tf.int64),
         'image/shape': tf.FixedLenFeature([3], tf.int64),
+        'image/keypoints_num': tf.FixedLenFeature([1], tf.int64),
         'image/object/bbox/xmin': tf.VarLenFeature(dtype=tf.float32),
         'image/object/bbox/ymin': tf.VarLenFeature(dtype=tf.float32),
         'image/object/bbox/xmax': tf.VarLenFeature(dtype=tf.float32),
         'image/object/bbox/ymax': tf.VarLenFeature(dtype=tf.float32),
+        'image/object/keypoints/x': tf.VarLenFeature(dtype=tf.float32),
+        'image/object/keypoints/y': tf.VarLenFeature(dtype=tf.float32),
         'image/object/bbox/label': tf.VarLenFeature(dtype=tf.int64),
         'image/object/bbox/difficult': tf.VarLenFeature(dtype=tf.int64),
         'image/object/bbox/truncated': tf.VarLenFeature(dtype=tf.int64),
     }
     items_to_handlers = {
         'image': slim.tfexample_decoder.Image('image/encoded', 'image/format'),
+        'filename': slim.tfexample_decoder.Tensor('image/filename'),
         'shape': slim.tfexample_decoder.Tensor('image/shape'),
+        'keypoints_num': slim.tfexample_decoder.Tensor('image/keypoints_num'),
         'object/bbox': slim.tfexample_decoder.BoundingBox(
-                ['ymin', 'xmin', 'ymax', 'xmax'], 'image/object/bbox/'),
+            ['ymin', 'xmin', 'ymax', 'xmax'], 'image/object/bbox/'),
+        'object/kx': slim.tfexample_decoder.Tensor('image/object/keypoints/x'),
+        'object/ky': slim.tfexample_decoder.Tensor('image/object/keypoints/y'),
         'object/label': slim.tfexample_decoder.Tensor('image/object/bbox/label'),
         'object/difficult': slim.tfexample_decoder.Tensor('image/object/bbox/difficult'),
         'object/truncated': slim.tfexample_decoder.Tensor('image/object/bbox/truncated'),
@@ -86,40 +94,56 @@ def slim_get_split(file_pattern='{}_????'):
     decoder = slim.tfexample_decoder.TFExampleDecoder(keys_to_features, items_to_handlers)
 
     dataset = slim.dataset.Dataset(
-                data_sources=file_pattern,
-                reader=tf.TFRecordReader,
-                decoder=decoder,
-                num_samples=100,
-                items_to_descriptions=None,
-                num_classes=21,
-                labels_to_names=None)
+        data_sources=file_pattern,
+        reader=tf.TFRecordReader,
+        decoder=decoder,
+        num_samples=100,
+        items_to_descriptions=None,
+        num_classes=21,
+        labels_to_names=None)
 
     with tf.name_scope('dataset_data_provider'):
         provider = slim.dataset_data_provider.DatasetDataProvider(
-                    dataset,
-                    num_readers=2,
-                    common_queue_capacity=32,
-                    common_queue_min=8,
-                    shuffle=True,
-                    num_epochs=1)
+            dataset,
+            num_readers=2,
+            common_queue_capacity=32,
+            common_queue_min=8,
+            shuffle=True,
+            num_epochs=1)
 
-    [org_image, shape, glabels_raw, gbboxes_raw, isdifficult] = provider.get(['image', 'shape',
-                                                                         'object/label',
-                                                                         'object/bbox',
-                                                                         'object/difficult'])
-    image, glabels, gbboxes = ssd_preprocessing.preprocess_image(org_image, glabels_raw, gbboxes_raw, [300, 300], is_training=True, data_format='channels_last', output_rgb=True)
+    keypoints_num = 5
+    [org_image, filename, shape, glabels_raw, gbboxes_raw, gkeypoints_x_raw, gkeypoints_y_raw,
+     isdifficult] = provider.get(['image', 'filename', 'shape',
+                                  'object/label',
+                                  'object/bbox',
+                                  'object/kx',
+                                  'object/ky',
+                                  'object/difficult'])
+    gkeypoints_x_raw = tf.reshape(gkeypoints_x_raw, (-1, keypoints_num))
+    gkeypoints_y_raw = tf.reshape(gkeypoints_y_raw, (-1, keypoints_num))
+    gkeypoints_raw = tf.stack([gkeypoints_x_raw, gkeypoints_y_raw], axis=-1)
+    image, glabels, gbboxes, gkeypoints = ssd_preprocessing.preprocess_image(org_image, glabels_raw, gbboxes_raw,
+                                                                             gkeypoints_raw, [300, 300],
+                                                                             is_training=True,
+                                                                             data_format='channels_last',
+                                                                             output_rgb=True)
 
-
-    anchor_creator = anchor_manipulator.AnchorCreator([300,300],
-                                                      layers_shapes=[(19, 19), (10, 10), (5, 5), (3, 3), (2, 2),
-                                                                     (1, 1)],
-                                                      anchor_scales=[(0.2,), (0.35,), (0.5,), (0.65,), (0.8,), (0.95,)],
-                                                      extra_anchor_scales=[(), (0.418,), (0.570,), (0.721,), (0.872,),
-                                                                           (0.975,)],
-                                                      anchor_ratios=[(1., 2., .5), (1., 2., .5, 3., 0.3333),
-                                                                     (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333),
-                                                                     (1., 2., .5, 3., 0.3333),
-                                                                     (1., 2., .5, 3., 0.3333)],
+    # anchor_creator = anchor_manipulator.AnchorCreator([300,300],
+    #                                                   layers_shapes=[(19, 19), (10, 10), (5, 5), (3, 3), (2, 2),
+    #                                                                  (1, 1)],
+    #                                                   anchor_scales=[(0.2,), (0.35,), (0.5,), (0.65,), (0.8,), (0.95,)],
+    #                                                   extra_anchor_scales=[(), (0.418,), (0.570,), (0.721,), (0.872,),
+    #                                                                        (0.975,)],
+    #                                                   anchor_ratios=[(1., 2., .5), (1., 2., .5, 3., 0.3333),
+    #                                                                  (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333),
+    #                                                                  (1., 2., .5, 3., 0.3333),
+    #                                                                  (1., 2., .5, 3., 0.3333)],
+    #                                                   layer_steps=None)
+    anchor_creator = anchor_manipulator.AnchorCreator([300, 300],
+                                                      layers_shapes=[(19, 19), (10, 10)],
+                                                      anchor_scales=[(0.215,),(0.35,)],
+                                                      extra_anchor_scales=[(0.275,), (0.418,)],
+                                                      anchor_ratios=[(1., .5),(1.,.5)],
                                                       layer_steps=None)
 
     all_anchors, all_num_anchors_depth, all_num_anchors_spatial = anchor_creator.get_all_anchors()

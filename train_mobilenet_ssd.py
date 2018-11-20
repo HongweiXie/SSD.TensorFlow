@@ -24,6 +24,7 @@ from tensorflow.python import debug as tf_debug
 
 from net import ssd_net
 from  net.mobilenet_v1_backbone import MobileNetV1Backbone
+from net.mobilenet_v1_ppn_backbone import MobileNetV1PPNBackbone
 from dataset import dataset_common
 from my_preprocessing import ssd_preprocessing
 from utility import anchor_manipulator
@@ -105,10 +106,10 @@ tf.app.flags.DEFINE_string(
     'The values of learning_rate decay factor for each segment between boundaries (comma-separated list).')
 # checkpoint related configuration
 tf.app.flags.DEFINE_string(
-    'checkpoint_path', '/home/sixd-ailabs/Develop/DL/TF/models/research/object_detection/trainmodels/ssd_mobilenet_v1_coco_2017_11_17',
+    'checkpoint_path', '/home/sixd-ailabs/Develop/Human/Caffe/MobileNetv2-SSDLite/models/mobilenet_v1_0.5_224',
     'The path to a checkpoint from which to fine-tune.')
 tf.app.flags.DEFINE_string(
-    'checkpoint_model_scope', 'FeatureExtractor',
+    'checkpoint_model_scope', '',
     'Model scope in the checkpoint. None if the same as the trained model.')
 tf.app.flags.DEFINE_string(
     'model_scope', 'FeatureExtractor',
@@ -154,7 +155,7 @@ def validate_batch_size_for_multi_gpu(batch_size):
 
 def get_init_fn():
     return scaffolds.get_init_fn_for_scaffold(FLAGS.model_dir, FLAGS.checkpoint_path,
-                                            FLAGS.model_scope, None,
+                                            FLAGS.model_scope, FLAGS.checkpoint_model_scope,
                                             FLAGS.checkpoint_exclude_scopes, FLAGS.ignore_missing_vars,
                                             name_remap={'/kernel': '/weights', '/bias': '/biases'})
 
@@ -167,12 +168,18 @@ global_anchor_info = dict()
 def input_pipeline(dataset_pattern='train-*', is_training=True, batch_size=FLAGS.batch_size):
     def input_fn():
         out_shape = [FLAGS.train_image_size] * 2
-        anchor_creator = anchor_manipulator.AnchorCreator(out_shape,
-                                                    layers_shapes = [(19, 19), (10, 10), (5, 5), (3, 3), (2,2), (1, 1)],
-                                                    anchor_scales = [(0.2,), (0.35,), (0.5,), (0.65,),(0.8,), (0.95,)],
-                                                    extra_anchor_scales = [(), (0.418,), (0.570,), (0.721,), (0.872,), (0.975,)],
-                                                    anchor_ratios = [(1., 2., .5), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333)],
-                                                    layer_steps = None)
+        # anchor_creator = anchor_manipulator.AnchorCreator(out_shape,
+        #                                             layers_shapes = [(19, 19), (10, 10), (5, 5), (3, 3), (2,2), (1, 1)],
+        #                                             anchor_scales = [(0.2,), (0.35,), (0.5,), (0.65,),(0.8,), (0.95,)],
+        #                                             extra_anchor_scales = [(), (0.418,), (0.570,), (0.721,), (0.872,), (0.975,)],
+        #                                             anchor_ratios = [(1., 2., .5), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333)],
+        #                                             layer_steps = None)
+        anchor_creator = anchor_manipulator.AnchorCreator([300, 300],
+                                                          layers_shapes=[(19, 19), (10, 10)],
+                                                          anchor_scales=[(0.215,), (0.35,)],
+                                                          extra_anchor_scales=[(0.275,), (0.418,)],
+                                                          anchor_ratios=[(1., .5), (1., .5)],
+                                                          layer_steps=None)
         all_anchors, all_num_anchors_depth, all_num_anchors_spatial = anchor_creator.get_all_anchors()
 
         num_anchors_per_layer = []
@@ -267,7 +274,7 @@ def ssd_model_fn(features, labels, mode, params):
 
     #print(all_num_anchors_depth)
     with tf.variable_scope(params['model_scope'], default_name=None, values=[features], reuse=tf.AUTO_REUSE):
-        backbone = MobileNetV1Backbone(params['data_format'])
+        backbone = MobileNetV1PPNBackbone(params['data_format'])
         feature_layers = backbone.forward(features, is_training=(mode == tf.estimator.ModeKeys.TRAIN))
         #print(feature_layers)
         location_pred, cls_pred = ssd_net.multibox_head(feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])

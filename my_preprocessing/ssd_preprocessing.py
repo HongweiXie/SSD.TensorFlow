@@ -255,13 +255,13 @@ def ssd_random_sample_patch(image, labels, bboxes, keypoints,ratio_list=[0.1, 0.
         # mask_max = tf.logical_and(tf.less(center_y, roi[2]), tf.less(center_x, roi[3]))
         # mask = tf.logical_and(mask_min, mask_max)
         mask=check_bbox_center(bboxes,roi)
-        mask=tf.Print(mask,[mask],message='mask before',summarize=100)
+        # mask=tf.Print(mask,[mask],message='mask before',summarize=100)
 
         mask_k=check_keypoints(keypoints,roi)
 
         mask=tf.logical_and(mask_k,mask)
-        mask = tf.Print(mask, [mask], message='mask after', summarize=100)
-        index=tf.Print(index,[index],message='index')
+        # mask = tf.Print(mask, [mask], message='mask after', summarize=100)
+        # index=tf.Print(index,[index],message='index')
         return index + 1, roi, mask
 
       [index, roi, mask] = tf.while_loop(condition, body, [index, roi, mask], parallel_iterations=10, back_prop=False, swap_memory=True)
@@ -287,7 +287,7 @@ def ssd_random_sample_patch(image, labels, bboxes, keypoints,ratio_list=[0.1, 0.
                                           tf.less(index, 1))
 
       def body(index, roi, mask_labels, mask_bboxes,mask_keypoints):
-        index = tf.Print(index, [index], message='check_roi_overlap index')
+        # index = tf.Print(index, [index], message='check_roi_overlap index')
         roi, mask_labels, mask_bboxes, mask_keypoints = check_roi_center(width, height, labels, bboxes, keypoints)
         return index+1, roi, mask_labels, mask_bboxes,mask_keypoints
 
@@ -330,7 +330,7 @@ def ssd_random_sample_patch(image, labels, bboxes, keypoints,ratio_list=[0.1, 0.
                                 roi_slice_range[2], roi_slice_range[3]]), mask_bboxes.dtype)
       scale2=tf.cast(tf.stack([roi_slice_range[3],roi_slice_range[2]]),mask_keypoints.dtype)
       mask_keypoints=tf.where(mask_keypoints>=0,mask_keypoints_absolute/scale2,mask_keypoints)
-      mask_keypoints=tf.Print(mask_keypoints,[mask_keypoints],message='kepoints_after_crop',summarize=100)
+      # mask_keypoints=tf.Print(mask_keypoints,[mask_keypoints],message='kepoints_after_crop',summarize=100)
       return tf.cond(tf.logical_or(tf.less(roi_slice_range[2], 1), tf.less(roi_slice_range[3], 1)),
                   lambda: (image, labels, bboxes,keypoints),
                   lambda: (tf.slice(image, [roi_slice_range[0], roi_slice_range[1], 0], [roi_slice_range[2], roi_slice_range[3], -1]),
@@ -429,12 +429,12 @@ def ssd_random_sample_patch_wrapper(image, labels, bboxes,keypoints):
       return tf.logical_or(tf.logical_and(tf.reduce_sum(tf.cast(check_bboxes(bboxes), tf.int64)) < 1, tf.less(index, max_attempt)), tf.less(index, 1))
 
     def body(index, image, labels, bboxes, keypoints, orgi_image, orgi_labels, orgi_bboxes, orgi_keypoints):
-      index=tf.Print(index,[index],message='ssd_random_sample_patch_wrapper index')
+      # index=tf.Print(index,[index],message='ssd_random_sample_patch_wrapper index')
       image, bboxes,keypoints = tf.cond(tf.random_uniform([], minval=0., maxval=1., dtype=tf.float32) < 0.5,
                       lambda: (orgi_image, orgi_bboxes,orgi_keypoints),
                       lambda: ssd_random_expand(orgi_image, orgi_bboxes, orgi_keypoints,tf.random_uniform([1], minval=1.01, maxval=1.3, dtype=tf.float32)[0]))
 
-      image, labels, bboxes, keypoints = random_rotation(image, labels,bboxes, keypoints)
+      image, labels, bboxes, keypoints = random_rotation(image, orgi_labels,bboxes, keypoints)
       # Distort image and bounding boxes.
       # random_sample_image, labels, bboxes = ssd_random_sample_patch(image, orgi_labels, bboxes, ratio_list=[-0.1, 0.1, 0.3, 0.5, 0.7, 0.9, 1.])
       random_sample_image, labels, bboxes, keypoints = ssd_random_sample_patch(image, labels, bboxes, keypoints,
@@ -570,7 +570,7 @@ def random_rotation(image, labels, bboxes,keypoints):
 
           mask=check_bbox_center(bboxes,roi)
           mask=tf.logical_and(mask,mask_k)
-          mask=tf.Print(mask,[mask],message='rotate mask',summarize=100)
+          # mask=tf.Print(mask,[mask],message='rotate mask',summarize=100)
 
           labels=tf.boolean_mask(orgi_labels,mask)
           bboxes=tf.boolean_mask(bboxes,mask)

@@ -9,9 +9,9 @@ _init_norm = tf.truncated_normal_initializer(stddev=0.01)
 _init_zero = slim.init_ops.zeros_initializer()
 _l2_regularizer_00004 = tf.contrib.layers.l2_regularizer(0.00004)
 
-class MobileNetV1Backbone(object):
+class MobileNetV1PPNBackbone(object):
     def __init__(self, data_format='channels_first'):
-        super(MobileNetV1Backbone, self).__init__()
+        super(MobileNetV1PPNBackbone, self).__init__()
         self._data_format = data_format
 
 
@@ -60,6 +60,10 @@ class MobileNetV1Backbone(object):
                                     weights_regularizer=_l2_regularizer_00004,
                                     weights_initializer=_init_xavier
                                     ):
+                    input_keys={
+                            'image_features': image_features['Conv2d_11_pointwise']
+                        }
+                    print(list(input_keys.keys())[0])
                     feature_maps = feature_map_generators.pooling_pyramid_feature_maps(
                         base_feature_map_depth=0,
                         num_layers=2,
@@ -74,7 +78,7 @@ class MobileNetV1Backbone(object):
 
 if __name__ == '__main__':
     input=tf.placeholder(tf.float32,shape=(None,300,300,3),name='image')
-    feature_extractor=MobileNetV1Backbone()
+    feature_extractor=MobileNetV1PPNBackbone()
     features=feature_extractor.forward(input,True)
     print(features)
 
