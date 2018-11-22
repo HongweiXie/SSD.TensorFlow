@@ -288,10 +288,12 @@ class AnchorCreator(object):
                        [5, 5, 5, 5, 5]]
         '''
         with tf.name_scope('get_layer_anchors'):
-            x_on_layer, y_on_layer = tf.meshgrid(tf.range(layer_shape[1]), tf.range(layer_shape[0]))
+            rows=[float(i) for i in range(0,layer_shape[1])]
+            cols=[float(i) for i in range(0,layer_shape[0])]
+            x_on_layer, y_on_layer = tf.meshgrid(rows, cols)
 
-            y_on_image = (tf.cast(y_on_layer, tf.float32) + offset) * layer_step / self._img_shape[0]
-            x_on_image = (tf.cast(x_on_layer, tf.float32) + offset) * layer_step / self._img_shape[1]
+            y_on_image = (y_on_layer + offset) * layer_step / self._img_shape[0]
+            x_on_image = (x_on_layer + offset) * layer_step / self._img_shape[1]
 
             num_anchors_along_depth = len(anchor_scale) * len(anchor_ratio) + len(extra_anchor_scale)
             num_anchors_along_spatial = layer_shape[1] * layer_shape[0]

@@ -7,6 +7,7 @@ from net import ssd_net
 from  net.mobilenet_v1_backbone import MobileNetV1Backbone
 from net.mobilenet_v1_ppn_backbone import MobileNetV1PPNBackbone
 from utility import anchor_manipulator
+from object_detection import exporter
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 def select_bboxes(scores_pred, bboxes_pred, num_classes, select_threshold):
@@ -83,7 +84,7 @@ def parse_by_class(cls_pred, bboxes_pred, num_classes, select_threshold, min_siz
 
         return selected_bboxes, selected_scores
 
-def get_network(model_name,input,num_classes):
+def get_network(model_name,input,num_classes,depth_multiplier):
     location_pred, cls_pred=None,None
 
     if model_name=='mobilenet_v1_ppn':
@@ -101,7 +102,7 @@ def get_network(model_name,input,num_classes):
         all_anchors, all_num_anchors_depth, all_num_anchors_spatial = anchor_creator.get_all_anchors()
 
         with tf.variable_scope('FeatureExtractor'):
-            backbone = MobileNetV1PPNBackbone('channels_last')
+            backbone = MobileNetV1PPNBackbone('channels_last',depth_multiplier=depth_multiplier)
             feature_layers = backbone.forward(input, is_training=False)
             # print(feature_layers)
             location_pred, cls_pred = ssd_net.multibox_head(feature_layers, num_classes, all_num_anchors_depth,
@@ -151,12 +152,14 @@ if __name__ == '__main__':
     """
     parser = argparse.ArgumentParser(description='Tensorflow Graph Extractor')
     parser.add_argument('--model', type=str, default='mobilenet_v1_ppn', help='vgg / mobilenet_v1 / mobilenet_v1_ppn')
+    parser.add_argument('--depth_multiplier', type=float, default=0.5, help='')
+    parser.add_argument('--num_classes', type=int, default=3, help='')
     parser.add_argument('--checkpoint_path', type=str, default='./logs/mobilenet_ssd/model.ckpt-23355', help='')
 
     args = parser.parse_args()
 
     input_node = tf.placeholder(tf.float32, shape=(1, 300, 300, 3), name='image')
-    net = get_network(args.model,input_node,3)
+    net = get_network(args.model,input_node,args.num_classes,args.depth_multiplier)
     # tf.contrib.quantize.create_eval_graph()
     output_dir = './workspace/' + args.model
     with tf.Session() as sess:
@@ -173,6 +176,7 @@ if __name__ == '__main__':
         eval_graph_file=os.path.join(output_dir,'')
 
         tf.train.write_graph(sess.graph_def, output_dir, 'graph.pb', as_text=True)
+        # exporter.profile_inference_graph(tf.get_default_graph())
 
         # graph = tf.get_default_graph()
         # for n in tf.get_default_graph().as_graph_def().node:
@@ -185,9 +189,28 @@ if __name__ == '__main__':
 
         summaryWriter = tf.summary.FileWriter('./workspace/'+args.model+'/log/', sess.graph_def)
 
-    os.system('python3 -m tensorflow.python.tools.freeze_graph --input_graph={} --output_graph={} --input_checkpoint={} --output_node_names={}'
-              .format(os.path.join(output_dir,'graph.pb'),
-                      os.path.join(output_dir,'exported_freezed_inference_graph.pb'),
-                      './workspace/' + args.model + '/chk-1',
-                      'PostProcess/Decoder/all_labels,PostProcess/Decoder/all_scores,PostProcess/Decoder/all_bboxes'))
+        input_saver_def = saver.as_saver_def()
+        frozen_graph_def = exporter.freeze_graph_with_def_protos(
+            input_graph_def=tf.get_default_graph().as_graph_def(),
+            input_saver_def=input_saver_def,
+            input_checkpoint=ckpt_path,
+            output_node_names=','.join([
+                'PostProcess/Decoder/all_labels', 'PostProcess/Decoder/all_scores',
+                'PostProcess/Decoder/all_bboxes'
+            ]),
+            restore_op_name='save/restore_all',
+            filename_tensor_name='save/Const:0',
+            clear_devices=True,
+            output_graph='',
+            initializer_nodes='')
 
+        binary_graph = os.path.join(output_dir, 'exported_freezed_inference_graph.pb')
+        with tf.gfile.GFile(binary_graph, 'wb') as f:
+            f.write(frozen_graph_def.SerializeToString())
+
+    # os.system('python3 -m tensorflow.python.tools.freeze_graph --input_graph={} --output_graph={} --input_checkpoint={} --output_node_names={}'
+    #           .format(os.path.join(output_dir,'graph.pb'),
+    #                   os.path.join(output_dir,'exported_freezed_inference_graph.pb'),
+    #                   './workspace/' + args.model + '/chk-1',
+    #                   'PostProcess/Decoder/all_labels,PostProcess/Decoder/all_scores,PostProcess/Decoder/all_bboxes'))
+    #
