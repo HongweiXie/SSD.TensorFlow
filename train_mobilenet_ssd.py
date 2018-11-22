@@ -176,8 +176,10 @@ def input_pipeline(dataset_pattern='train-*', is_training=True, batch_size=FLAGS
         #                                             extra_anchor_scales = [(), (0.418,), (0.570,), (0.721,), (0.872,), (0.975,)],
         #                                             anchor_ratios = [(1., 2., .5), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333)],
         #                                             layer_steps = None)
-        anchor_creator = anchor_manipulator.AnchorCreator([300, 300],
-                                                          layers_shapes=[(19, 19), (10, 10)],
+        feat_l1_shape=(int(FLAGS.train_image_size/16.+0.5),int(FLAGS.train_image_size/16.+0.5))
+        feat_l2_shape=(int(FLAGS.train_image_size/32.+0.5),int(FLAGS.train_image_size/32.+0.5))
+        anchor_creator = anchor_manipulator.AnchorCreator(out_shape,
+                                                          layers_shapes=[feat_l1_shape, feat_l2_shape],
                                                           anchor_scales=[(0.215,), (0.35,)],
                                                           extra_anchor_scales=[(0.275,), (0.418,)],
                                                           anchor_ratios=[(1., .5), (1., .5)],

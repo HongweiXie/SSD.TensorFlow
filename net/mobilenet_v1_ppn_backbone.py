@@ -18,13 +18,6 @@ class MobileNetV1PPNBackbone(object):
 
     def forward(self, inputs, is_training=False):
         features=[]
-        feature_map_layout = {
-            'from_layer': ['Conv2d_11_pointwise', 'Conv2d_13_pointwise', '', '',
-                           '', ''],
-            'layer_depth': [-1, -1, 512, 256, 256, 128],
-            'use_explicit_padding': False,
-            'use_depthwise': False,
-        }
         with tf.variable_scope('MobilenetV1') as scope:
             with slim.arg_scope([slim.batch_norm],
                                 decay=0.97,

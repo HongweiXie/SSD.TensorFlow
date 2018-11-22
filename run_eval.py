@@ -14,9 +14,9 @@ if __name__ == '__main__':
     CLASSES = ('background',
                'index','other')
     detector=MutliBBoxDetector('./workspace/mobilenet_v1_ppn/exported_freezed_inference_graph.pb',(300,300))
-    input_path='/home/sixd-ailabs/Develop/Human/Hand/diandu/test/taideng/test'
-    output_path='/home/sixd-ailabs/Develop/Human/Hand/diandu/test/eval_taideng'
-    show=True
+    input_path='/home/sixd-ailabs/Develop/Human/Hand/diandu/test/chengren_17'
+    output_path='/home/sixd-ailabs/Develop/Human/Hand/diandu/test/eval_chengren_17_lr'
+    show=False
     jpg_list=glob.glob(input_path+'/*.jpg')
     for jpg_file in tqdm.tqdm(jpg_list):
 
