@@ -167,12 +167,14 @@ if __name__ == '__main__':
     parser.add_argument('--num_classes', type=int, default=3, help='')
     parser.add_argument('--checkpoint_path', type=str, default='./logs/mobilenet_ssd/model.ckpt-23355', help='')
     parser.add_argument('--image_size', type=int, default=300, help='')
+    parser.add_argument('--quant',type=bool,default=False)
 
     args = parser.parse_args()
     input_size=args.image_size
     input_node = tf.placeholder(tf.float32, shape=(1, input_size, input_size, 3), name='image')
     net = get_network(args.model,input_node,input_size,args.num_classes,args.depth_multiplier)
-    # tf.contrib.quantize.create_eval_graph()
+    if args.quant:
+        tf.contrib.quantize.create_eval_graph()
     output_dir = './workspace/' + args.model
     with tf.Session() as sess:
         ckpt_path = args.checkpoint_path

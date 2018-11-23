@@ -61,9 +61,9 @@ class MobileNetV1PPNBranchBackbone(BackboneNetwork):
 
 
 if __name__ == '__main__':
-    #192x192x0.25=155.44M flops 192x192x0.5=337.64M flops 160x160x0.25=108M flops 160x160x0.5=234.47M flops
-    input=tf.placeholder(tf.float32,shape=(1,160,160,3),name='image')
-    feature_extractor=MobileNetV1PPNBranchBackbone(depth_multiplier=0.25)
+    #192x192x0.25=155.44M flops 192x192x0.5=337.64M flops 160x160x0.25=108M flops 160x160x0.5=234.47M flops 128x128x0.5=150.06M
+    input=tf.placeholder(tf.float32,shape=(1,128,128,3),name='image')
+    feature_extractor=MobileNetV1PPNBranchBackbone(depth_multiplier=0.5)
     features=feature_extractor.forward(input,True)
     exporter.profile_inference_graph(tf.get_default_graph())
     print(features)

@@ -95,16 +95,16 @@ tf.app.flags.DEFINE_float(
 tf.app.flags.DEFINE_float(
     'momentum', 0.9,
     'The momentum for the MomentumOptimizer and RMSPropOptimizer.')
-tf.app.flags.DEFINE_float('learning_rate', 1e-3, 'Initial learning rate.')
+tf.app.flags.DEFINE_float('learning_rate', 4e-3, 'Initial learning rate.')
 tf.app.flags.DEFINE_float(
     'end_learning_rate', 0.000001,
     'The minimal end learning rate used by a polynomial decay learning rate.')
 # for learning rate piecewise_constant decay
 tf.app.flags.DEFINE_string(
-    'decay_boundaries', '500, 80000, 100000',
+    'decay_boundaries',   '1000,2000,6000,70000,80000,100000',
     'Learning rate decay boundaries by global_step (comma-separated list).')
 tf.app.flags.DEFINE_string(
-    'lr_decay_factors', '0.1, 1, 0.1, 0.01',
+    'lr_decay_factors', '0.1,1,0.25,0.1,0.01,0.25,0.025',
     'The values of learning_rate decay factor for each segment between boundaries (comma-separated list).')
 # checkpoint related configuration
 tf.app.flags.DEFINE_string(
@@ -130,6 +130,15 @@ tf.app.flags.DEFINE_float(
 
 tf.app.flags.DEFINE_string(
     'backbone_network', 'mobilenet_v1_ppn', 'backbone network')
+
+tf.app.flags.DEFINE_boolean(
+    'quant', False,
+    'quant-aware training.')
+
+tf.app.flags.DEFINE_integer(
+    'quant_delay', 80000,
+    'Batch size for training and evaluation.')
+
 
 FLAGS = tf.app.flags.FLAGS
 #CUDA_VISIBLE_DEVICES
@@ -418,6 +427,9 @@ def ssd_model_fn(features, labels, mode, params):
         truncated_learning_rate = tf.maximum(learning_rate, tf.constant(params['end_learning_rate'], dtype=learning_rate.dtype), name='learning_rate')
         # Create a tensor named learning_rate for logging purposes.
         tf.summary.scalar('learning_rate', truncated_learning_rate)
+
+        if (FLAGS.quant):
+            tf.contrib.quantize.create_training_graph(quant_delay=FLAGS.quant_delay)
 
         optimizer = tf.train.MomentumOptimizer(learning_rate=truncated_learning_rate,
                                                 momentum=params['momentum'])
