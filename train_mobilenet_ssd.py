@@ -25,6 +25,8 @@ from tensorflow.python import debug as tf_debug
 from net import ssd_net
 from  net.mobilenet_v1_backbone import MobileNetV1Backbone
 from net.mobilenet_v1_ppn_backbone import MobileNetV1PPNBackbone
+from net.mobilenet_v1_ppn_skip_backbone import MobileNetV1PPNSkipBackbone
+from net.mobilenet_v1_ppn_branch_backbone import MobileNetV1PPNBranchBackbone
 from dataset import dataset_common
 from my_preprocessing import ssd_preprocessing
 from utility import anchor_manipulator
@@ -58,7 +60,7 @@ tf.app.flags.DEFINE_integer(
     'save_summary_steps', 500,
     'The frequency with which summaries are saved, in seconds.')
 tf.app.flags.DEFINE_integer(
-    'save_checkpoints_secs', 100,
+    'save_checkpoints_secs', 600,
     'The frequency with which the model is saved, in seconds.')
 # model related configuration
 tf.app.flags.DEFINE_integer(
@@ -126,6 +128,9 @@ tf.app.flags.DEFINE_boolean(
 tf.app.flags.DEFINE_float(
     'depth_multiplier', 0.5, 'depth_multipiler for backbone network')
 
+tf.app.flags.DEFINE_string(
+    'backbone_network', 'mobilenet_v1_ppn', 'backbone network')
+
 FLAGS = tf.app.flags.FLAGS
 #CUDA_VISIBLE_DEVICES
 def validate_batch_size_for_multi_gpu(batch_size):
@@ -176,8 +181,12 @@ def input_pipeline(dataset_pattern='train-*', is_training=True, batch_size=FLAGS
         #                                             extra_anchor_scales = [(), (0.418,), (0.570,), (0.721,), (0.872,), (0.975,)],
         #                                             anchor_ratios = [(1., 2., .5), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333)],
         #                                             layer_steps = None)
-        feat_l1_shape=(int(FLAGS.train_image_size/16.+0.5),int(FLAGS.train_image_size/16.+0.5))
-        feat_l2_shape=(int(FLAGS.train_image_size/32.+0.5),int(FLAGS.train_image_size/32.+0.5))
+        if FLAGS.backbone_network=='mobilenet_v1_ppn_skip' or FLAGS.backbone_network=='mobilenet_v1_ppn_branch':
+            feat_l1_shape=(int(FLAGS.train_image_size/8.+0.5),int(FLAGS.train_image_size/8.+0.5))
+            feat_l2_shape=(int(FLAGS.train_image_size/16.+0.5),int(FLAGS.train_image_size/16.+0.5))
+        else:
+            feat_l1_shape = (int(FLAGS.train_image_size / 16. + 0.5), int(FLAGS.train_image_size / 16. + 0.5))
+            feat_l2_shape = (int(FLAGS.train_image_size / 32. + 0.5), int(FLAGS.train_image_size / 32. + 0.5))
         anchor_creator = anchor_manipulator.AnchorCreator(out_shape,
                                                           layers_shapes=[feat_l1_shape, feat_l2_shape],
                                                           anchor_scales=[(0.215,), (0.35,)],
@@ -278,7 +287,14 @@ def ssd_model_fn(features, labels, mode, params):
 
     #print(all_num_anchors_depth)
     with tf.variable_scope(params['model_scope'], default_name=None, values=[features], reuse=tf.AUTO_REUSE):
-        backbone = MobileNetV1PPNBackbone(params['data_format'],depth_multiplier=FLAGS.depth_multiplier)
+        if FLAGS.backbone_network=='mobilenet_v1_ppn':
+            backbone = MobileNetV1PPNBackbone(params['data_format'],depth_multiplier=FLAGS.depth_multiplier)
+        elif FLAGS.backbone_network=='mobilenet_v1':
+            backbone = MobileNetV1Backbone(params['data_format'],depth_multiplier=FLAGS.depth_multiplier)
+        elif FLAGS.backbone_network=='mobilenet_v1_ppn_skip':
+            backbone = MobileNetV1PPNSkipBackbone(params['data_format'],depth_multiplier=FLAGS.depth_multiplier)
+        else:
+            backbone = MobileNetV1PPNBranchBackbone(params['data_format'],depth_multiplier=FLAGS.depth_multiplier)
         feature_layers = backbone.forward(features, is_training=(mode == tf.estimator.ModeKeys.TRAIN))
         #print(feature_layers)
         location_pred, cls_pred = ssd_net.multibox_head(feature_layers, params['num_classes'], all_num_anchors_depth, data_format=params['data_format'])

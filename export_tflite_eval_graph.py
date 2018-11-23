@@ -83,15 +83,15 @@ def get_network(model_name,input,num_classes,depth_multiplier):
             location_pred = [tf.reshape(pred, [-1, 4]) for pred in location_pred]
 
 
-            cls_pred = tf.expand_dims(tf.concat(cls_pred, axis=0), 0)
+            cls_pred = tf.concat(cls_pred, axis=0)
             location_pred = tf.expand_dims(tf.concat(location_pred, axis=0),0, name='box_encodings')
 
             # score_convert_fn_=post_processing_builder._build_score_converter(post_processing_pb2.PostProcessing.SIGMOID,1.0)
             cls_pred=tf.nn.softmax(cls_pred)
-            num_anchors = tf.shape(cls_pred)[1]
-            cls_pred=tf.slice(cls_pred,[0,0,0],[1,num_anchors,num_classes-1])
+            # num_anchors = tf.shape(cls_pred)[1]
+            # cls_pred=tf.slice(cls_pred,[0,0,0],[1,num_anchors,num_classes-1])
 
-            tf.identity(cls_pred, name='class_predictions')
+            tf.identity(tf.expand_dims(cls_pred,0), name='class_predictions')
 
         anchors=encode_anchors(all_anchors)
         tf.identity(anchors,'anchors')
@@ -115,7 +115,7 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint_path', type=str, default='./logs/mobilenet_ssd/model.ckpt-23355', help='')
 
     args = parser.parse_args()
-    add_postprocessing_op=True
+    add_postprocessing_op=False
 
 
     input_node = tf.placeholder(tf.float32, shape=(1, 300, 300, 3), name='normalized_input_image_tensor')
@@ -168,7 +168,7 @@ if __name__ == '__main__':
             scale_values={'y_scale':[10.],'x_scale':[10.],'h_scale':[5.],'w_scale':[5.]}
             transformed_graph_def = export_tflite_ssd_graph_lib.append_postprocessing_op(
                 frozen_graph_def, max_detections=10, max_classes_per_detection=1,
-                nms_score_threshold=[0.01], nms_iou_threshold=[0.5], num_classes=1, scale_values=scale_values)
+                nms_score_threshold=[0.01], nms_iou_threshold=[0.5], num_classes=args.num_classes-1, scale_values=scale_values)
         else:
             transformed_graph_def=frozen_graph_def
 

@@ -6,6 +6,7 @@ from tensorflow.python.tools import freeze_graph
 from net import ssd_net
 from  net.mobilenet_v1_backbone import MobileNetV1Backbone
 from net.mobilenet_v1_ppn_backbone import MobileNetV1PPNBackbone
+from net.mobilenet_v1_ppn_skip_backbone import MobileNetV1PPNSkipBackbone
 from utility import anchor_manipulator
 from object_detection import exporter
 
@@ -84,17 +85,24 @@ def parse_by_class(cls_pred, bboxes_pred, num_classes, select_threshold, min_siz
 
         return selected_bboxes, selected_scores
 
-def get_network(model_name,input,num_classes,depth_multiplier):
+def get_network(model_name,input,input_size,num_classes,depth_multiplier):
     location_pred, cls_pred=None,None
 
-    if model_name=='mobilenet_v1_ppn':
+    if str(model_name).startswith('mobilenet_v1_ppn'):
         anchor_encoder_decoder = anchor_manipulator.AnchorEncoder(allowed_borders=[1.0] * 2,
                                                                   positive_threshold=0.5,
                                                                   ignore_threshold=0.5,
                                                                   prior_scaling=[0.1, 0.1, 0.2, 0.2])
 
-        anchor_creator = anchor_manipulator.AnchorCreator([300, 300],
-                                                          layers_shapes=[(19, 19), (10, 10)],
+        if model_name=='mobilenet_v1_ppn_skip':
+            feat_l1_shape=(int(input_size/8.+0.5),int(input_size/8.+0.5))
+            feat_l2_shape=(int(input_size/16.+0.5),int(input_size/16.+0.5))
+        else:
+            feat_l1_shape = (int(input_size / 16. + 0.5), int(input_size / 16. + 0.5))
+            feat_l2_shape = (int(input_size / 32. + 0.5), int(input_size / 32. + 0.5))
+
+        anchor_creator = anchor_manipulator.AnchorCreator([input_size, input_size],
+                                                          layers_shapes=[feat_l1_shape, feat_l2_shape],
                                                           anchor_scales=[(0.215,), (0.35,)],
                                                           extra_anchor_scales=[(0.275,), (0.418,)],
                                                           anchor_ratios=[(1., .5), (1., .5)],
@@ -102,7 +110,10 @@ def get_network(model_name,input,num_classes,depth_multiplier):
         all_anchors, all_num_anchors_depth, all_num_anchors_spatial = anchor_creator.get_all_anchors()
 
         with tf.variable_scope('FeatureExtractor'):
-            backbone = MobileNetV1PPNBackbone('channels_last',depth_multiplier=depth_multiplier)
+            if model_name=='mobilenet_v1_ppn':
+                backbone = MobileNetV1PPNBackbone('channels_last',depth_multiplier=depth_multiplier)
+            else:
+                backbone = MobileNetV1PPNSkipBackbone('channels_last', depth_multiplier=depth_multiplier)
             feature_layers = backbone.forward(input, is_training=False)
             # print(feature_layers)
             location_pred, cls_pred = ssd_net.multibox_head(feature_layers, num_classes, all_num_anchors_depth,
@@ -155,11 +166,12 @@ if __name__ == '__main__':
     parser.add_argument('--depth_multiplier', type=float, default=0.5, help='')
     parser.add_argument('--num_classes', type=int, default=3, help='')
     parser.add_argument('--checkpoint_path', type=str, default='./logs/mobilenet_ssd/model.ckpt-23355', help='')
+    parser.add_argument('--image_size', type=int, default=300, help='')
 
     args = parser.parse_args()
-
-    input_node = tf.placeholder(tf.float32, shape=(1, 300, 300, 3), name='image')
-    net = get_network(args.model,input_node,args.num_classes,args.depth_multiplier)
+    input_size=args.image_size
+    input_node = tf.placeholder(tf.float32, shape=(1, input_size, input_size, 3), name='image')
+    net = get_network(args.model,input_node,input_size,args.num_classes,args.depth_multiplier)
     # tf.contrib.quantize.create_eval_graph()
     output_dir = './workspace/' + args.model
     with tf.Session() as sess:

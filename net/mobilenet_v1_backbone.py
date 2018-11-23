@@ -10,10 +10,10 @@ _init_zero = slim.init_ops.zeros_initializer()
 _l2_regularizer_00004 = tf.contrib.layers.l2_regularizer(0.00004)
 
 class MobileNetV1Backbone(object):
-    def __init__(self, data_format='channels_first'):
+    def __init__(self, data_format='channels_first',depth_multiplier=1.0):
         super(MobileNetV1Backbone, self).__init__()
         self._data_format = data_format
-
+        self._depth_multiplier=depth_multiplier
 
     def forward(self, inputs, is_training=False):
         features=[]
@@ -44,7 +44,7 @@ class MobileNetV1Backbone(object):
                             inputs,
                             final_endpoint='Conv2d_13_pointwise',
                             min_depth=8,
-                            depth_multiplier=1.0,
+                            depth_multiplier=self._depth_multiplier,
                             use_explicit_padding=False,
                             scope=scope)
 
@@ -62,7 +62,7 @@ class MobileNetV1Backbone(object):
                                     ):
                     feature_maps = feature_map_generators.multi_resolution_feature_maps(
                         feature_map_layout=feature_map_layout,
-                        depth_multiplier=1.0,
+                        depth_multiplier=self._depth_multiplier,
                         min_depth=8,
                         insert_1x1_conv=True,
                         image_features=image_features)
