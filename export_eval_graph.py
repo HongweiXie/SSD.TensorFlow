@@ -7,6 +7,7 @@ from net import ssd_net
 from  net.mobilenet_v1_backbone import MobileNetV1Backbone
 from net.mobilenet_v1_ppn_backbone import MobileNetV1PPNBackbone
 from net.mobilenet_v1_ppn_skip_backbone import MobileNetV1PPNSkipBackbone
+from net.mobilenet_v1_ppn_branch_backbone import MobileNetV1PPNBranchBackbone
 from utility import anchor_manipulator
 from object_detection import exporter
 
@@ -94,7 +95,7 @@ def get_network(model_name,input,input_size,num_classes,depth_multiplier):
                                                                   ignore_threshold=0.5,
                                                                   prior_scaling=[0.1, 0.1, 0.2, 0.2])
 
-        if model_name=='mobilenet_v1_ppn_skip':
+        if model_name=='mobilenet_v1_ppn_skip' or model_name=='mobilenet_v1_ppn_branch':
             feat_l1_shape=(int(input_size/8.+0.5),int(input_size/8.+0.5))
             feat_l2_shape=(int(input_size/16.+0.5),int(input_size/16.+0.5))
         else:
@@ -112,8 +113,10 @@ def get_network(model_name,input,input_size,num_classes,depth_multiplier):
         with tf.variable_scope('FeatureExtractor'):
             if model_name=='mobilenet_v1_ppn':
                 backbone = MobileNetV1PPNBackbone('channels_last',depth_multiplier=depth_multiplier)
-            else:
+            elif model_name=='mobilenet_v1_ppn_skip':
                 backbone = MobileNetV1PPNSkipBackbone('channels_last', depth_multiplier=depth_multiplier)
+            else:
+                backbone = MobileNetV1PPNBranchBackbone('channels_last', depth_multiplier=depth_multiplier)
             feature_layers = backbone.forward(input, is_training=False)
             # print(feature_layers)
             location_pred, cls_pred = ssd_net.multibox_head(feature_layers, num_classes, all_num_anchors_depth,
