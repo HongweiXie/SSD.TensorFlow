@@ -191,11 +191,11 @@ def input_pipeline(dataset_pattern='train-*', is_training=True, batch_size=FLAGS
         #                                             anchor_ratios = [(1., 2., .5), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333), (1., 2., .5, 3., 0.3333)],
         #                                             layer_steps = None)
         if FLAGS.backbone_network=='mobilenet_v1_ppn_skip' or FLAGS.backbone_network=='mobilenet_v1_ppn_branch':
-            feat_l1_shape=(int(FLAGS.train_image_size/8.+0.5),int(FLAGS.train_image_size/8.+0.5))
-            feat_l2_shape=(int(FLAGS.train_image_size/16.+0.5),int(FLAGS.train_image_size/16.+0.5))
+            feat_l1_shape=(int(FLAGS.train_image_size/8.+0.99),int(FLAGS.train_image_size/8.+0.99))
+            feat_l2_shape=(int(FLAGS.train_image_size/16.+0.99),int(FLAGS.train_image_size/16.+0.99))
         else:
-            feat_l1_shape = (int(FLAGS.train_image_size / 16. + 0.5), int(FLAGS.train_image_size / 16. + 0.5))
-            feat_l2_shape = (int(FLAGS.train_image_size / 32. + 0.5), int(FLAGS.train_image_size / 32. + 0.5))
+            feat_l1_shape = (int(FLAGS.train_image_size / 16. + 0.99), int(FLAGS.train_image_size / 16. + 0.99))
+            feat_l2_shape = (int(FLAGS.train_image_size / 32. + 0.99), int(FLAGS.train_image_size / 32. + 0.99))
         anchor_creator = anchor_manipulator.AnchorCreator(out_shape,
                                                           layers_shapes=[feat_l1_shape, feat_l2_shape],
                                                           anchor_scales=[(0.215,), (0.35,)],

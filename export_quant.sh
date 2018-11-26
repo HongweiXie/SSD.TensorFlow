@@ -27,9 +27,9 @@
 # --default_ranges_max=1
 
  /home/sixd-ailabs/Develop/DL/TF/test/tensorflow/bazel-bin/tensorflow/contrib/lite/toco/toco \
- --input_file=./workspace/mobilenet_v1_ppn/tflite_graph.pb \
- --output_file=./workspace/mobilenet_v1_ppn/detection.tflite \
- --input_shapes=1,300,300,3 \
+ --input_file=./workspace/mobilenet_v1_ppn_skip/tflite_graph.pb \
+ --output_file=./workspace/mobilenet_v1_ppn_skip/detection.tflite \
+ --input_shapes=1,128,128,3 \
  --input_arrays=normalized_input_image_tensor \
  --output_arrays='raw_outputs/class_predictions','raw_outputs/box_encodings'\
  --inference_type=QUANTIZED_UINT8  \

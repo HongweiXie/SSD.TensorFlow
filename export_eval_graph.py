@@ -96,11 +96,11 @@ def get_network(model_name,input,input_size,num_classes,depth_multiplier):
                                                                   prior_scaling=[0.1, 0.1, 0.2, 0.2])
 
         if model_name=='mobilenet_v1_ppn_skip' or model_name=='mobilenet_v1_ppn_branch':
-            feat_l1_shape=(int(input_size/8.+0.5),int(input_size/8.+0.5))
-            feat_l2_shape=(int(input_size/16.+0.5),int(input_size/16.+0.5))
+            feat_l1_shape=(int(input_size/8.+0.99),int(input_size/8.+0.99))
+            feat_l2_shape=(int(input_size/16.+0.99),int(input_size/16.+0.99))
         else:
-            feat_l1_shape = (int(input_size / 16. + 0.5), int(input_size / 16. + 0.5))
-            feat_l2_shape = (int(input_size / 32. + 0.5), int(input_size / 32. + 0.5))
+            feat_l1_shape = (int(input_size / 16. + 0.99), int(input_size / 16. + 0.99))
+            feat_l2_shape = (int(input_size / 32. + 0.99), int(input_size / 32. + 0.99))
 
         anchor_creator = anchor_manipulator.AnchorCreator([input_size, input_size],
                                                           layers_shapes=[feat_l1_shape, feat_l2_shape],
