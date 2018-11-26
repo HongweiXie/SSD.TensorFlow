@@ -20,7 +20,7 @@ class MobileNetV1PPNBackbone(BackboneNetwork):
 
     def forward(self, inputs, is_training=False):
         features=[]
-        with tf.variable_scope('MobilenetV1') as scope:
+        with tf.variable_scope('MobilenetV1',reuse=tf.AUTO_REUSE) as scope:
             with slim.arg_scope([slim.batch_norm],
                                 decay=0.97,
                                 epsilon=0.001,

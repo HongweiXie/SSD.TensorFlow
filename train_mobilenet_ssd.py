@@ -101,7 +101,7 @@ tf.app.flags.DEFINE_float(
     'The minimal end learning rate used by a polynomial decay learning rate.')
 # for learning rate piecewise_constant decay
 tf.app.flags.DEFINE_string(
-    'decay_boundaries',   '1000,2000,6000,70000,80000,100000',
+    'decay_boundaries',   '1000,20000,60000,70000,80000,100000',
     'Learning rate decay boundaries by global_step (comma-separated list).')
 tf.app.flags.DEFINE_string(
     'lr_decay_factors', '0.1,1,0.25,0.1,0.01,0.25,0.025',
@@ -429,7 +429,8 @@ def ssd_model_fn(features, labels, mode, params):
         tf.summary.scalar('learning_rate', truncated_learning_rate)
 
         if (FLAGS.quant):
-            tf.contrib.quantize.create_training_graph(quant_delay=FLAGS.quant_delay)
+            with tf.variable_scope(tf.get_variable_scope(), reuse=tf.AUTO_REUSE):
+                tf.contrib.quantize.create_training_graph(quant_delay=FLAGS.quant_delay)
 
         optimizer = tf.train.MomentumOptimizer(learning_rate=truncated_learning_rate,
                                                 momentum=params['momentum'])
