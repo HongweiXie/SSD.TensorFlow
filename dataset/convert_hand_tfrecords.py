@@ -45,7 +45,7 @@ import dataset_common
 '''
 tf.app.flags.DEFINE_string('dataset_directory', '/home/sixd-ailabs/Develop/Human/Hand/diandu/test',
                            'All datas directory')
-tf.app.flags.DEFINE_string('train_splits', 'total_640x360',
+tf.app.flags.DEFINE_string('train_splits', 'total_640x360,xiaoxue_34_150_640x360',
                            'Comma-separated list of the training data sub-directory')
 tf.app.flags.DEFINE_string('validation_splits', 'chengren_17',
                            'Comma-separated list of the validation data sub-directory')

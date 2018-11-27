@@ -26,6 +26,14 @@ HAND_LABLES={
 'point': (1, 'hand'),
 'point_r': (1, 'hand'),
 'point_l': (1, 'hand'),
+'other_r': (2, 'hand'),
+'other_l': (2, 'hand'),
+'two_r': (2, 'hand'),
+'two_l': (2, 'hand'),
+'pen_r': (2, 'hand'),
+'pen_l': (2, 'hand'),
+'fist_r': (2, 'hand'),
+'fist_l': (2, 'hand'),
 }
 VOC_LABELS = {
     'none': (0, 'Background'),

@@ -24,6 +24,12 @@ def point2center(ymin, xmin, ymax, xmax):
     height, width = (ymax - ymin), (xmax - xmin)
     return ymin + height / 2., xmin + width / 2., height, width
 
+def write_anchors_to_file(anchors,output_path):
+    with open(output_path,'w') as f:
+        for i in range(len(anchors[0])):
+            f.write('{} {} {} {}\n'.format(anchors[0][i],anchors[1][i],anchors[2][i],anchors[3][i]))
+
+
 def encode_anchors(all_anchors):
     list_anchors_ymin = []
     list_anchors_xmin = []
@@ -55,7 +61,7 @@ def encode_anchors(all_anchors):
         dtype=tf.float32,
         shape=[num_anchors[0], 4])
 
-    return encoded_anchors
+    return encoded_anchors,[y_out, x_out, h_out, w_out]
 
 def get_network(model_name,input,input_size,num_classes,depth_multiplier):
     location_pred, cls_pred=None,None
@@ -111,8 +117,10 @@ def get_network(model_name,input,input_size,num_classes,depth_multiplier):
 
             tf.identity(tf.expand_dims(cls_pred,0), name='class_predictions')
 
-        anchors=encode_anchors(all_anchors)
+        anchors,values=encode_anchors(all_anchors)
         tf.identity(anchors,'anchors')
+
+        write_anchors_to_file(values,'./workspace/' + model_name+'/anchors.txt')
 
 
         return cls_pred,location_pred,anchors

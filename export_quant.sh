@@ -27,12 +27,27 @@
 # --default_ranges_max=1
 
  /home/sixd-ailabs/Develop/DL/TF/test/tensorflow/bazel-bin/tensorflow/contrib/lite/toco/toco \
- --input_file=./workspace/mobilenet_v1_ppn_skip/tflite_graph.pb \
- --output_file=./workspace/mobilenet_v1_ppn_skip/detection.tflite \
- --input_shapes=1,128,128,3 \
+ --input_file=./workspace/mobilenet_v1_ppn/tflite_graph.pb \
+ --output_file=./workspace/mobilenet_v1_ppn/detection.tflite \
+ --input_shapes=1,300,300,3 \
  --input_arrays=normalized_input_image_tensor \
  --output_arrays='raw_outputs/class_predictions','raw_outputs/box_encodings'\
  --inference_type=QUANTIZED_UINT8  \
- --allow_custom_ops \
- --default_ranges_min=-8 \
- --default_ranges_max=8
+ --mean_values=127.5 \
+ --std_values=127.5
+
+
+  /home/sixd-ailabs/Develop/DL/TF/test/tensorflow/bazel-bin/tensorflow/contrib/lite/toco/toco \
+ --input_file=./workspace/mobilenet_v1_ppn/tflite_graph.pb \
+ --output_file=./workspace/mobilenet_v1_ppn/detection.dot \
+ --output_format=GRAPHVIZ_DOT   \
+ --input_shapes=1,300,300,3 \
+ --input_arrays=normalized_input_image_tensor \
+ --output_arrays='raw_outputs/class_predictions','raw_outputs/box_encodings'\
+ --inference_type=QUANTIZED_UINT8  \
+ --mean_values=127.5 \
+ --std_values=127.5
+
+dot -Tpdf ./workspace/mobilenet_v1_ppn/detection.dot -o ./workspace/mobilenet_v1_ppn/detection.pdf
+ #--default_ranges_min=-8 \
+ #--default_ranges_max=8
