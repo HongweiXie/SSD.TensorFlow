@@ -14,11 +14,16 @@ if __name__ == '__main__':
     COLORS = ((128, 128, 128), (0, 255, 0), (0, 255, 255), (255, 255, 0), (0, 0, 255))
     CLASSES = ('background',
                'index','other')
-    detector=TFLiteMutliBBoxDetectorWithoutPostProcess('./workspace/mobilenet_v1_ppn/detection.tflite','./workspace/mobilenet_v1_ppn/anchors.txt',(300,300))
-    input_path='/home/sixd-ailabs/Develop/Human/Hand/diandu/test/chengren_17'
-    output_path='/home/sixd-ailabs/Develop/Human/Hand/diandu/test/eval_chengren_17_lr'
-    show=False
+    detector=TFLiteMutliBBoxDetectorWithoutPostProcess('./workspace/mobilenet_v1_ppn_branch/detection.tflite','./workspace/mobilenet_v1_ppn_branch/anchors.txt',(192,192),is_quant=False)
+    # input_path='/home/sixd-ailabs/Downloads/test/test'
+    # output_path='/home/sixd-ailabs/Downloads/test/test'
+    # input_path='/home/sixd-ailabs/Develop/Human/Hand/diandu/test/taideng/test'
+    # output_path='/home/sixd-ailabs/Develop/Human/Hand/diandu/test/eval_taideng'
+    input_path = '/home/sixd-ailabs/Develop/Human/Hand/diandu/test/chengren_17'
+    output_path = '/home/sixd-ailabs/Develop/Human/Hand/diandu/test/eval_chengren_17_lr'
+    show=True
     jpg_list=glob.glob(input_path+'/*.jpg')
+    jpg_list=sorted(jpg_list)
     for jpg_file in tqdm.tqdm(jpg_list):
 
         image=cv2.imread(jpg_file)
@@ -30,14 +35,14 @@ if __name__ == '__main__':
             print(jpg_file)
         writer=PascalVocWriter('test',jpg_name,image.shape,localImgPath=os.path.join(output_path,jpg_name))
         for bbox in all_bboxes:
-            if bbox._score>0.01:
+            if bbox._score>0.03:
                 ymin=int(bbox._ymin*h+0.5)
                 xmin=int(bbox._xmin*w+0.5)
                 ymax=int(bbox._ymax*h+0.5)
                 xmax=int(bbox._xmax*w+0.5)
                 writer.addBndBox(xmin,ymin,xmax,ymax,CLASSES[int(bbox._class_index)],False,bbox._score)
                 if(show):
-                    if(bbox._score>0.3):
+                    if(bbox._score>0.03):
                         cv2.rectangle(image, (xmin, ymin), (xmax, ymax), COLORS[int(bbox._class_index)], 3)
                         title = "%s:%.2f" % (CLASSES[int(bbox._class_index)], bbox._score)
                         p3 = (max(xmin, 15), max(ymin, 15) - 7)

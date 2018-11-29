@@ -41,7 +41,7 @@ if __name__ == '__main__':
             print(jpg_file)
         writer=PascalVocWriter('test',jpg_name,image.shape,localImgPath=os.path.join(output_path,jpg_name))
         for label,score,bbox in zip(all_labels,all_scores,all_bboxes):
-            if score>0.1:
+            if score>0.01:
                 ymin=int(bbox[0]*h+0.5)
                 xmin=int(bbox[1]*w+0.5)
                 ymax=int(bbox[2]*h+0.5)
@@ -57,7 +57,7 @@ if __name__ == '__main__':
 
         if(show):
             cv2.imshow('SSD', image)
-            cv2.waitKey(0)
+            cv2.waitKey(300)
     if show:
         cv2.destroyAllWindows()
 

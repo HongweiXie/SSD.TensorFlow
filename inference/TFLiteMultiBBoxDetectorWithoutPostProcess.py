@@ -4,17 +4,20 @@ import cv2
 import numpy as np
 import math
 
-#0.0495828
-#169
+#0.0495828  169
+#0.0729403 194
+#0.0500808 163
 class BBox(object):
-    def __init__(self,class_index,score,bbox,anchor):
+    def __init__(self,class_index,score,bbox,anchor,is_quant=True):
         self._class_index=class_index
         self._score=score
-        bbox=self.decode_bbox(bbox, anchor, 0.0495828, 169, 10, 5)
+        self._is_quant = is_quant
+        bbox=self.decode_bbox(bbox, anchor, 0.0500808 , 163, 10, 5)
         self._ymin = max(0,bbox[0])
         self._xmin = max(0,bbox[1])
         self._ymax = min(1,bbox[2])
         self._xmax = min(1,bbox[3])
+
 
 
     def decode_bbox(self, bbox, anchor, q_scale, q_z, xy_scale, hw_scale):
@@ -33,8 +36,8 @@ class BBox(object):
             ymax=y_center+half_h
             xmax=x_center+half_w
             return ymin,xmin,ymax,xmax
-
-        bbox=np.asarray(list(map(dequnt,bbox)))
+        if self._is_quant:
+            bbox=np.asarray(list(map(dequnt,bbox)))
         bbox=decode(bbox)
         return bbox
 
@@ -45,13 +48,14 @@ class BBox(object):
 
 
 class TFLiteMutliBBoxDetectorWithoutPostProcess(object):
-    def __init__(self, tflite_model_file,anchors_file,image_resize_size,threshold=0.01):
+    def __init__(self, tflite_model_file,anchors_file,image_resize_size,threshold=0.01,is_quant=True):
         self._logger = logging.getLogger('MultiBBoxDetector')
         self._logger.setLevel(logging.INFO)
 
         self._logger.info('loading graph from %s' % (tflite_model_file))
         self._image_resize_size=image_resize_size
         self._threshold=threshold
+        self._is_quant=is_quant
 
         self.interpreter = tf.contrib.lite.Interpreter(model_path=str(tflite_model_file))
         self.interpreter.allocate_tensors()
@@ -76,9 +80,10 @@ class TFLiteMutliBBoxDetectorWithoutPostProcess(object):
 
     def inference(self,image):
         image=cv2.resize(image,self._image_resize_size)
-        # image = image.astype(np.float32)
-        # image = image - 127.5
-        # image = image * 0.007843
+        if not self._is_quant:
+            image = image.astype(np.float32)
+            image = image - 127.5
+            image = image * 0.007843
 
         self.interpreter.set_tensor(self.input_index, [image])
         self.interpreter.invoke()
@@ -98,9 +103,12 @@ class TFLiteMutliBBoxDetectorWithoutPostProcess(object):
         for k in range(len(scores)):
             score_tuple = scores[k]
             for i in range(1,num_classes):
-                score=score_tuple[i]/255.
+                if self._is_quant:
+                    score=score_tuple[i]/255.
+                else:
+                    score=score_tuple[i]
                 if score>=threshold and score_tuple[i]>score_tuple[0]:
-                    bbox=BBox(i,score,bboxes[k],self.anchors[k])
+                    bbox=BBox(i,score,bboxes[k],self.anchors[k],self._is_quant)
                     if bbox._xmax>bbox._xmin and bbox._ymax>bbox._ymin:
                         selected_bbox[i].append(bbox)
 

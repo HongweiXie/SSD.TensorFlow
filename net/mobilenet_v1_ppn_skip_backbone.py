@@ -48,9 +48,12 @@ class MobileNetV1PPNSkipBackbone(BackboneNetwork):
             # conv2d_7_upsample=self.upsample(image_features['Conv2d_7_pointwise'], 2, name='Conv2d_7_pointwise_upsample')
             features_concat=tf.concat([image_features['Conv2d_5_pointwise'],conv2d_11_upsample],axis=3)
             prefix='Feature_Concat'
-            features_concat=self.separable_conv(features_concat,3, 3, min(256,192*4*self._depth_multiplier), 1, name=prefix + '_L_1')
-            features_concat = self.separable_conv(features_concat, 3, 3, 256, 1, name=prefix + '_L_2')
-            # features_concat = self.separable_conv(features_concat, 3, 3, 256, 1, name=prefix + '_L_3')
+            features_concat=self.separable_conv(features_concat,3, 3, min(256,192*4*self._depth_multiplier), 1,is_training=is_training, name=prefix + '_L_1')
+            # features_concat = self.separable_conv(features_concat, 3, 3, 192, 1,
+            #                                       name=prefix + '_L_1')
+
+            features_concat = self.separable_conv(features_concat, 3, 3, min(256,192*4*self._depth_multiplier), 1, is_training=is_training,name=prefix + '_L_2')
+            features_concat = self.separable_conv(features_concat, 3, 3, 256, 1, is_training=is_training,name=prefix + '_L_3')
             # features_concat = self.convb(features_concat, 1, 1, 256, 1, name=prefix + '_L_4')
             with slim.arg_scope([slim.batch_norm],
                                 decay=0.97,
