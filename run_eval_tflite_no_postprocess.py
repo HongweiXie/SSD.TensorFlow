@@ -8,20 +8,33 @@ import tqdm
 from inference.TFLiteMultiBBoxDetector import TFLiteMutliBBoxDetector
 from inference.TFLiteMultiBBoxDetectorWithoutPostProcess import TFLiteMutliBBoxDetectorWithoutPostProcess
 from pascal_voc_io import PascalVocWriter
-
+import argparse
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Tensorflow Graph Extractor')
+    parser.add_argument('--model', type=str, default='mobilenet_v1_ppn_skip',
+                        help='vgg / mobilenet_v1 / mobilenet_v1_ppn')
+    parser.add_argument('--input_path', type=str,
+                        default='/home/sixd-ailabs/Develop/Human/Hand/diandu/test/chengren_17', help='')
+    parser.add_argument('--output_path', type=str,
+                        default='/home/sixd-ailabs/Develop/Human/Hand/diandu/test/eval_chengren_17_lr', help='')
+    parser.add_argument('--image_size', type=int, default=128, help='')
+    parser.add_argument('--show', type=bool, default=False, help='')
+    args = parser.parse_args()
+
     COLORS = ((128, 128, 128), (0, 255, 0), (0, 255, 255), (255, 255, 0), (0, 0, 255))
     CLASSES = ('background',
                'index','other')
-    detector=TFLiteMutliBBoxDetectorWithoutPostProcess('./workspace/mobilenet_v1_ppn_branch/detection.tflite','./workspace/mobilenet_v1_ppn_branch/anchors.txt',(192,192),is_quant=False)
+    detector=TFLiteMutliBBoxDetectorWithoutPostProcess('./workspace/'+args.model+'/detection.tflite','./workspace/'+args.model+'/anchors.txt',(args.image_size,args.image_size),is_quant=True)
+    input_path=args.input_path
+    output_path=args.output_path
     # input_path='/home/sixd-ailabs/Downloads/test/test'
     # output_path='/home/sixd-ailabs/Downloads/test/test'
     # input_path='/home/sixd-ailabs/Develop/Human/Hand/diandu/test/taideng/test'
     # output_path='/home/sixd-ailabs/Develop/Human/Hand/diandu/test/eval_taideng'
-    input_path = '/home/sixd-ailabs/Develop/Human/Hand/diandu/test/chengren_17'
-    output_path = '/home/sixd-ailabs/Develop/Human/Hand/diandu/test/eval_chengren_17_lr'
-    show=True
+    # input_path = '/home/sixd-ailabs/Develop/Human/Hand/diandu/test/chengren_17'
+    # output_path = '/home/sixd-ailabs/Develop/Human/Hand/diandu/test/eval_chengren_17_lr'
+    show=args.show
     jpg_list=glob.glob(input_path+'/*.jpg')
     jpg_list=sorted(jpg_list)
     for jpg_file in tqdm.tqdm(jpg_list):
